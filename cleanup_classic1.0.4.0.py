@@ -1,9 +1,22 @@
-#idea and code by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
-#fork, mods and bugs by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
+#idea and code and bugs by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
+#fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
 #cleanup_classic1.0.3.2.py
-#19/11/2022#Warning it's an experiment early version that shows input and output stft spectrums on screen.    
-#
-#11/15/2022#How to use this file:
+
+#11/19/2022 : Warning. This is only an experiment. 
+#For proper denoising, you can use denoising tools built into your SDR, or use VST plugins.
+#One excellent plugin is acon digital denoise 2. It is realtime. But it does cost $99.
+#This experiment is intended to explore improvements to common threshholding and denoising methods in a domain
+#which is readily accessible for experimentation, namely simple scripting without any complex languages or compilers.
+#Python's performance has come a long way and with numpy, numba, and a little optimization, it is closer to c++.
+#Therefore consider this merely a testbed. Feel free to try your own algorithms and optimizations in here.
+#At the moment, this testbed is hosting an improvised thresholding algorithm.
+#This is inspired by the noisereduce python library, which works somewhat well but was designed for bird calls.
+#The algorithm assumes that the signal is above the noise floor, attempts to estimate the noise floor, and then
+#calculates a threshold high enough to identify the voice formant waveform ridges, which is then softened to form
+#a "contour" around the signal. It also works well on CW and some data modes, but is only intended for listening.
+#Science has concluded the harsher the noise, the more it stresses the listener. It can be harmful to health.
+#We recommend using this in a pipeline with an expander(agc) after the noise reduction.
+#How to use this file:
 #you will need 1 virtual audio cable- try https://vb-audio.com/Cable/ if you use windows.
 #install and configure the virtual audio cable and your speakers for 16 bits, 48000hz, two channels.
 #if you use OSX or Linux, you will have to modify this file by changing audio devices, settings and libraries appropriately.
@@ -28,7 +41,7 @@
 
 #further recommendations:
 #I recommend adding 3db of ephram malah in your SDR(or speex, which is enhanced ephram-malah, if any of them have it)
-#and 10db of gain after this script, followed by a compressor- if you know how to use one.
+#and 10db of gain after this script, followed by an expander and a compressor- if you know how to use one.
 
 import os
 import numpy
