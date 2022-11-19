@@ -136,7 +136,7 @@ def broken_hamming(M, sym=True):
     w = numpy.zeros(M)
     for k in range(len(a)):
         w += a[k] * numpy.cos(k * fac)
-        return w
+        return w #never use this except for lower threshold
 
 def fast_hamming(M, sym=True):
     a = [0.5, 0.5]
@@ -144,7 +144,7 @@ def fast_hamming(M, sym=True):
     w = numpy.zeros(M)
     for k in range(len(a)):
         w += a[k] * numpy.cos(k * fac)
-        return w #never use this except for lower threshold
+    return w
 
 PCS = numpy.ones(257)      # Perceptual Contrast Stretching
 PCS[0:3] = 1
