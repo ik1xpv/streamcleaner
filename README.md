@@ -1,17 +1,9 @@
 <div id="top"></div>
 
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![GNU License][license-shield]][license-url]
-[![LinkedIn][linkedin-shield]][linkedin-url]
-
 <!-- PROJECT LOGO
 <br />
 
 <h3 align="center">Stream Cleaner Testbed</h3>
-<h3 align="center">FABADA</h3>
 
   <p align="center">
     Stream Cleaner is a testbed for audio noise reduction approaches. Currently it uses a non-parametric noise reduction technique which considers thresholds.
