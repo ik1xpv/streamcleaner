@@ -1,8 +1,8 @@
 #idea and code and bugs by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup_classic1.0.3.2.py
+#cleanup_classic1.0.4.py
 
-#11/19/2022 : Warning. This is only an experiment. 
+#11/27/2022 : Warning. This is only an experiment. 
 #For proper denoising, you can use denoising tools built into your SDR, or use VST plugins.
 #One excellent plugin is acon digital denoise 2. It is realtime. But it does cost $99.
 #This experiment is intended to explore improvements to common threshholding and denoising methods in a domain
@@ -25,7 +25,7 @@
 #install python.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
-#conda install pip numpy
+#conda install pip numpy scipy
 #pip install librosa pipwin numba dearpygui np-rw-buffer opencv-python
 #pipwin install pyaudio
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
@@ -48,26 +48,10 @@ import numpy
 import numba
 import pyaudio
 import librosa
-
 from time import sleep
+from scipy.special import logit
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
-import array
-
-import matplotlib.image as mimage
-import matplotlib.colors as colors
-from matplotlib import cm
-import cv2
-
-
-def padarray(A, size):
-    t = size - len(A)
-    return numpy.pad(A, pad_width=(0, t), mode='constant')
-
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
 
 @numba.njit(cache=True)
 def loop(h, w, k, kernel, x_pad, out):
@@ -83,9 +67,9 @@ def loop(h, w, k, kernel, x_pad, out):
 def filter(x):
     """Filter the image.
     """
-    #sigma = 5.0
+    #sigma = 4.0
     #var = sigma * sigma
-    k = 12 #int(3.0 * 5 + 0.5)
+    k = 12 #int(3.0 * 4 + 0.5)
     q = numpy.linspace(-k, k, 2*k+1)
     kernel = numpy.exp(-0.5 * q * q / 16) #var)
     kernel = kernel / numpy.sum(kernel)
@@ -97,46 +81,35 @@ def filter(x):
     h, w = horiz.shape
     x_pad = numpy.pad(horiz[:, :], [(k,), (k,)], mode="edge")
     horiz = loop(h, w, k, kernel, x_pad, horiz)
-    horiz = horiz.transpose((1, 0)).astype(x.dtype)
+    horiz = horiz.transpose((1, 0)).astype(float)
     return horiz
 
-@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True)
-def mask_t(stft_vr: numpy.ndarray):
-    stft_vr = numpy.sqrt(stft_vr)
-    stft_vr = numpy.where(stft_vr>0,stft_vr,0)
-    for each in range(stft_vr.shape[0]):
-        for a in range(stft_vr.shape[1]):
-          if stft_vr[each,a] > 0:
-            stft_vr[each,a] = numpy.log10(stft_vr[each,a])
-    stft_vr /= numpy.max(stft_vr)
-    stft_avg = numpy.zeros(stft_vr.shape[1],dtype=numpy.float64)
 
-    for each in range(stft_vr.shape[1]):
-      samples = stft_vr[:,each]
-      stft_avg[each] = numpy.max(samples)
-      samples /= numpy.max(samples)
-      samples = numpy.where(samples>0,samples,0)
-      samples =  numpy.power(10,samples)
-      samples /= numpy.max(samples)
-      samples = numpy.where(samples>0,samples,0)
-      stft_vr[:,each] = samples
-    trend = stft_avg
-    trend = numpy.where(trend>0,trend,0)#get rid of the inter-frame glitch 
-    trend =  numpy.power(10,trend)
-    trend /= numpy.max(trend)
-    trend = numpy.where(trend>0,trend,0)
-    for each in range(stft_vr.shape[1]):
-      stft_vr[:,each] = stft_vr[:,each] * trend[each]
-    return stft_vr
+"""
+ The standard deviation is the square root of the average of the squared
+    deviations from the mean, i.e., ``std = sqrt(mean(x))``, where
+    ``x = abs(a - a.mean())**2``.
+"""
+def mad(arr):
+    """ Median Absolute Deviation: a "Robust" version of standard deviation.
+        Indices variabililty of the sample.
+        https://en.wikipedia.org/wiki/Median_absolute_deviation
+    """
+    med = numpy.nanmedian(arr)
+    return numpy.nanmedian(numpy.abs(arr - med))
 
-#do not use this as a window for a reversable STFT! it will NOT WORK
-def broken_hamming(M, sym=True):
-    a = [0.5, 0.5]
-    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
-    w = numpy.zeros(M)
-    for k in range(len(a)):
-        w += a[k] * numpy.cos(k * fac)
-        return w #never use this except for lower threshold
+def atd(arr):
+    med = numpy.nanmedian(arr)
+    return numpy.sqrt(mad(arr))
+
+def aSNR(arr):
+  return mad(arr)/atd(arr)
+
+def SNR(arr):
+  return numpy.nanmean(arr)/numpy.nanstd(arr)
+
+def threshhold(arr):
+  return (atd(arr)+ numpy.nanmedian(arr)) * (SNR(arr) - aSNR(arr))
 
 def fast_hamming(M, sym=True):
     a = [0.5, 0.5]
@@ -146,108 +119,69 @@ def fast_hamming(M, sym=True):
         w += a[k] * numpy.cos(k * fac)
     return w
 
-PCS = numpy.ones(257)      # Perceptual Contrast Stretching
-PCS[0:3] = 1
-PCS[3:6] = 1.070175439
-PCS[6:9] = 1.182456140
-PCS[9:12] = 1.287719298
-PCS[12:138] = 1.4       # Pre Set
-PCS[138:166] = 1.322807018
-PCS[166:200] = 1.238596491
-PCS[200:241] = 1.161403509
-PCS[241:256] = 1.077192982
+#do not use this as a window for a reversable STFT! it will NOT WORK
+def broken_hamming(M, sym=True):
+    a = [0.5, 0.5]
+    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
+    w = numpy.zeros(M)
+    for k in range(len(a)):
+        w += a[k] * numpy.cos(k * fac)
+        return w
 
-DENOISE = True
-#STOP4KHZ = int((512 *8000)/48000)
-NBIN = int((512 *8000)/48000) # 8000 Hz spectrogram span
-L_OFS = 1.2 # log offset
-
-def mad(arr):
-    """ Median Absolute Deviation: a "Robust" version of standard deviation.
-        Indices variabililty of the sample.
-        https://en.wikipedia.org/wiki/Median_absolute_deviation
-    """
-    med = numpy.median(arr)
-    return numpy.median(numpy.abs(arr - med))
-
-def atd(arr):
-    med = numpy.median(arr)
-    return numpy.sqrt(mad(arr))
-
-def aSNR(arr):
-  return mad(arr)/atd(arr)
-
-def SNR(arr):
-  return numpy.mean(arr)/numpy.std(arr)
-
-def threshhold(arr):
-  return (atd(arr)+ numpy.median(arr)) * (SNR(arr) - aSNR(arr))
-
-def denoise(data: numpy.ndarray,DENOISE):
+def denoise1(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array
-    stft_bad = librosa.stft(data,n_fft=512,window=broken_hamming) #get complex representation
-    stft_vr = numpy.square(abs(stft_bad.real)) + numpy.square(abs(stft_bad.imag)) #obtain absolute
-    stft_vr = numpy.sqrt(stft_vr) #shouldnt return anything weird
+
+
+    stft_r = librosa.stft(data,n_fft=512,window=broken_hamming) #get complex representation
+    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
     Y = stft_vr[~numpy.isnan(stft_vr)]
-    max = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmax()
-    min = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmin()
+    max = numpy.where(numpy.isinf(Y),0,Y).argmax()
     max = Y[max]
-    min = Y[min]
-    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=min)#correct irrationalities
-    stft_vr = (stft_vr - numpy.min(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
-    t = threshhold(stft_vr[stft_vr>0])  #obtain the noise threshold
+    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
+    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
+    stft_vr = stft_vr/numpy.amax(stft_vr) #normalize to 0,1
+    a = data.copy()
+    a = numpy.sort(a)
+    scaled = numpy.interp(a, (a.min(), a.max()), (-6, +6))
+    fprint = numpy.linspace(0, 1, a.size)
+    y = logit(fprint)
+    y[y == -numpy.inf] = -6
+    y[y == +numpy.inf] = 6
+    z = numpy.corrcoef(scaled, y)
+    completeness = z[0, 1]
+    print(completeness)
+    v = numpy.exp(SNR(data)) +numpy.exp(aSNR(data))
+    t = threshhold(stft_vr)  * v
+     
+    mask_one = numpy.where(stft_vr>=t, 1,0)
+    stft_demo = numpy.where(mask_one == 0, stft_vr,0)
+    stft_d = stft_demo.flatten()
+    stft_d = stft_d[stft_d>0]
+    r = (numpy.nanmean(stft_d) - mad(stft_d))
 
     stft_r = librosa.stft(data,n_fft=512,window=fast_hamming) #get complex representation
-    stft_vr = numpy.square(abs(stft_r.real)) + numpy.square(abs(stft_r.imag)) #obtain absolute
-    stft_vr = numpy.sqrt(stft_vr) #shouldnt return anything weird
+    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
     Y = stft_vr[~numpy.isnan(stft_vr)]
     max = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmax()
-    min = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmin()
     max = Y[max]
-    min = Y[min]
-    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=min)#correct irrationalities
-    stft_vr = (stft_vr - numpy.min(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
+    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
+    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
+    stft_vr = stft_vr/numpy.amax(stft_vr) #normalize to 0,1
 
-    mask_one = numpy.zeros(stft_vr.shape,dtype=int)
-    mask_one = numpy.where(stft_vr>t, 1,0)
 
-    mask_two = numpy.zeros(stft_vr.shape,dtype=int)
-
-    stft_demo= numpy.where(mask_one == 1, stft_vr,0)
-    t = threshhold(stft_demo[stft_demo>0])  #obtain the halfway threshold
+    t = threshhold(stft_vr[stft_vr>=t])  #obtain the halfway threshold
   
-    mask_two = numpy.zeros(stft_vr.shape,dtype=float)
+    mask_two = numpy.where(stft_vr>=t, 1.0,r)
+    mask_two_ = filter(mask_two) 
+    mask_two_[mask_one == 0] = r #absolutely prune the true noise floor
+    
 
-    mask_two = numpy.where(stft_vr>=t, 1,0)
-    mask_two_ = filter(mask_two)
-    mask_two_[mask_two == 1] = 1
-    if DENOISE: 
-         stft_r = stft_r * mask_two_#apply mask
-         processed = librosa.istft(stft_r,window=fast_hamming)
-    else:
-         processed = data
-
-    arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vr, bytes=False,norm=True)
-    arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
-    dpg.set_value("dirty_texture", arr_color) 
-
-   
-    stft_vr = numpy.square(abs(stft_r.real)) + numpy.square(abs(stft_r.imag)) #obtain absolute
-    stft_vr = numpy.sqrt(stft_vr) #shouldnt return anything weird
-    Y = stft_vr[~numpy.isnan(stft_vr)]
-    max = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmax()
-    min = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmin()
-    max = Y[max]
-    min = Y[min]
-    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=min)#correct irrationalities
-    stft_vr = (stft_vr - numpy.min(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
-
-
-    arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vr, bytes=False,norm=True)
-    arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
-    dpg.set_value("clean_texture", arr_color)
+    stft_r = stft_r * mask_two_
+    processed = librosa.istft(stft_r,window=fast_hamming)
     return processed
 
+def denoise(data: numpy.ndarray):
+    return denoise1(data)
 
 class StreamSampler(object):
     dtype_to_paformat = {
@@ -300,7 +234,6 @@ class StreamSampler(object):
         self.set_sample_rate(sample_rate)
         self.set_channels(channels)
         self.set_dtype(dtype)
-        self.denoise = True
 
     @property
     def processing_size(self):
@@ -487,9 +420,9 @@ class StreamSampler(object):
 
         audio = self.rb.read(self._processing_size)
         chans = []
-        chans.append(denoise(audio[:, 0],self.denoise))
-        chans.append(denoise(audio[:, 1],self.denoise))
-        dpg.set_value("plot2", chans[0])
+        chans.append(denoise(audio[:, 0]))
+        chans.append(denoise(audio[:, 1]))
+
         return numpy.column_stack(chans).astype(self.dtype).tobytes(), pyaudio.paContinue
 
     def stream_start(self):
@@ -518,45 +451,16 @@ if __name__ == "__main__":
         SS.stop()
         quit()
 
-    dpg.create_context()     
 
-    def denoisetoggle(sender, app_data,user_data):
-        if SS.denoise.enabled == True:
-            dpg.set_item_label("toggleswitch", "denoiser is ON")
-            SS.denoise = False
-        else:
-            dpg.set_item_label("toggleswitch", "denoiser is OFF")
-            SS.denoise = True
-
-
-    cleantexture = [1, 1, 0, 1] * 660 * 257
-    dirtytexture = [1, 0, 1, 1] * 660 * 257
-    #patch from joviex- the enumeration in the online docs showing .append doesn't work for larger textures        
-    with dpg.texture_registry():
-        dpg.add_dynamic_texture(660, 257, dirtytexture, tag="dirty_texture")
-    with dpg.texture_registry():
-        dpg.add_dynamic_texture(660, 257, cleantexture, tag="clean_texture")
-    dpg.create_viewport(title= 'Denoiser',width=660, height=780)
+    dpg.create_context()
+    dpg.create_viewport(title= 'Streamclean', height=100, width=400)
     dpg.setup_dearpygui()
-
-
-    with dpg.window(label= 'cleanup_classic.1.0.4.0', width=660, height=780):
-        dpg.add_text("stft input")
-        dpg.add_image("dirty_texture")
-        dpg.add_text("stft output")
-        dpg.add_image("clean_texture")
-        dpg.add_text("waveform out")
-        dpg.add_simple_plot( min_scale=-1.0, max_scale=1.0, width=660, height=100, tag="plot2") 
-        dpg.add_button(label="Disable", tag="toggleswitch", callback=denoisetoggle)
-        
-
-
     dpg.configure_app(auto_device=True)
 
     dpg.show_viewport()
     while dpg.is_dearpygui_running():
         dpg.render_dearpygui_frame()
-
-        
     close()  # clean up the program runtime when the user closes the window
-   
+    while dpg.is_dearpygui_running():
+        dpg.render_dearpygui_frame()
+    close()  # clean up the program runtime when the user closes the window
