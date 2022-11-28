@@ -150,8 +150,7 @@ def denoise1(data: numpy.ndarray):
     z = numpy.corrcoef(scaled, y)
     completeness = z[0, 1]
     print(completeness)
-    v = numpy.exp(SNR(data)) +numpy.exp(aSNR(data))
-    t = threshhold(stft_vr)  * v
+    t = threshhold(stft_vr)  
      
     mask_one = numpy.where(stft_vr>=t, 1,0)
     stft_demo = numpy.where(mask_one == 0, stft_vr,0)
