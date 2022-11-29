@@ -149,8 +149,13 @@ def denoise1(data: numpy.ndarray):
     y[y == +numpy.inf] = 6
     z = numpy.corrcoef(scaled, y)
     completeness = z[0, 1]
-    print(completeness)
-    t = threshhold(stft_vr)  
+    sigma = 1 - completeness
+    #if sigma is above 0.005, it can be reliably concluded to be signal.
+    #if it is below 0.005, it cannot be meaningfully, statistically identified to be dissimilar from noise.
+    #on that basis consider using the output of this "sigma" variable as a measure of signal quality.
+    
+    
+    t = threshhold(stft_vr)  * t
      
     mask_one = numpy.where(stft_vr>=t, 1,0)
     stft_demo = numpy.where(mask_one == 0, stft_vr,0)
