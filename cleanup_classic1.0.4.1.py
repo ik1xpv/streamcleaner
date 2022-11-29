@@ -1,8 +1,8 @@
 #idea and code and bugs by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup_classic1.0.4.py
+#cleanup_classic1.0.4.1.py
 
-#11/27/2022 : Warning. This is only an experiment. 
+#11/29/2022 : Warning. This is only an experiment and not for the faint of heart
 #For proper denoising, you can use denoising tools built into your SDR, or use VST plugins.
 #One excellent plugin is acon digital denoise 2. It is realtime. But it does cost $99.
 #This experiment is intended to explore improvements to common threshholding and denoising methods in a domain
@@ -49,7 +49,6 @@ import numba
 import pyaudio
 import librosa
 from time import sleep
-from scipy.special import logit
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
 
@@ -111,6 +110,52 @@ def SNR(arr):
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr)) * (SNR(arr) - aSNR(arr))
 
+#it's possible im doing this wrong and this could be done faster with a native numpy function.
+#all we do here is take the 2d image and the transpose of the image, and unravel them both.
+#given that the ravel in this case doesn't edit the contents(ie a different formant or transpose AFTER the ravel),
+#the ravel is just a view- any change to the flattened form happens to the primary form.
+#We then smooth both, and then transpose back the transposed copy, and recombine them.
+#as a result we have our 2d smoothing with nearest neighbor. 
+#@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True,parallel=True,nogil=True)
+#replacing the decorator with the above will speed up the code, but its possible to make changes(to this function body)
+#that could then cause improper memory access/writing and crash python, so I don't use it by default, but you can swap it
+#for an immediate(perhaps dramatic) speed boost.
+
+@numba.njit(cache=True)
+def numba_adjacent_filter(data: numpy.ndarray):
+        normal = data.copy()
+        transposed = data.copy()
+        transposed = transposed.T
+        transposed_raveled = numpy.ravel(transposed)
+        normal_raveled = numpy.ravel(normal)
+        zeroth = numpy.zeros_like(normal_raveled)
+        
+        for i in numba.prange(1,zeroth.size - 1):
+            zeroth[i] = (transposed_raveled[i - 1] + transposed_raveled[i] + transposed_raveled[i + 1]) / 3
+        
+        zeroth[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) / 3
+        zeroth[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2) / 3
+        transposed_raveled[:] = zeroth.copy()
+        transposed = transposed.T
+
+        for i in numba.prange(1,zeroth.size - 1):
+            zeroth[i] = (normal_raveled[i - 1] + normal_raveled[i] + normal_raveled[i + 1]) / 3
+        
+        zeroth[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) / 3
+        zeroth[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2) / 3
+        normal_raveled[:] = zeroth.copy()
+
+        return (transposed + normal)/2
+
+def filter_wrapper_50(data: numpy.ndarray):
+  d = data.copy()
+  for i in range(50):
+    d = numba_adjacent_filter(d)
+  return d
+
+
+
+
 def fast_hamming(M, sym=True):
     a = [0.5, 0.5]
     fac = numpy.linspace(-numpy.pi, numpy.pi, M)
@@ -128,18 +173,12 @@ def broken_hamming(M, sym=True):
         w += a[k] * numpy.cos(k * fac)
         return w
 
-def denoise1(data: numpy.ndarray):
-    data= numpy.asarray(data,dtype=float) #correct byte order of array
-
-
-    stft_r = librosa.stft(data,n_fft=512,window=broken_hamming) #get complex representation
-    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
-    Y = stft_vr[~numpy.isnan(stft_vr)]
-    max = numpy.where(numpy.isinf(Y),0,Y).argmax()
-    max = Y[max]
-    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
-    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
-    stft_vr = stft_vr/numpy.amax(stft_vr) #normalize to 0,1
+'''
+   #crude entropy function
+   #in your header:
+   from scipy.special import logit
+   #in your code
+   
     a = data.copy()
     a = numpy.sort(a)
     scaled = numpy.interp(a, (a.min(), a.max()), (-6, +6))
@@ -150,18 +189,30 @@ def denoise1(data: numpy.ndarray):
     z = numpy.corrcoef(scaled, y)
     completeness = z[0, 1]
     sigma = 1 - completeness
-    #if sigma is above 0.005, it can be reliably concluded to be signal.
-    #if it is below 0.005, it cannot be meaningfully, statistically identified to be dissimilar from noise.
-    #on that basis consider using the output of this "sigma" variable as a measure of signal quality.
-    
-    
-    t = threshhold(stft_vr)  * t
+    #if it is below 0.005, it cannot be meaningfully, statistically identified to be dissimilar from guassian distribution noise.
+    #on that basis consider using the output of this "sigma" variable as a measure of entropy.
+    #there are clearly other noise distributions but generally the more "noisy" noise is, the more guassian-like it is- because it has a bell curve distribution-
+    #ie is truly random as opposed to biased in some form.
+ '''
+
+def denoise(data: numpy.ndarray):
+    data= numpy.asarray(data,dtype=float) #correct byte order of array
+    stft_r = librosa.stft(data,n_fft=512,window=broken_hamming) #get complex representation
+    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
+    Y = stft_vr[~numpy.isnan(stft_vr)]
+    max = numpy.where(numpy.isinf(Y),0,Y).argmax()
+    max = Y[max]
+    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
+    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
+    stft_vr = stft_vr/numpy.amax(stft_vr) #normalize to 0,1
+
+    t = threshhold(stft_vr) *2
      
     mask_one = numpy.where(stft_vr>=t, 1,0)
     stft_demo = numpy.where(mask_one == 0, stft_vr,0)
     stft_d = stft_demo.flatten()
     stft_d = stft_d[stft_d>0]
-    r = (numpy.nanmean(stft_d) - mad(stft_d))
+    r = numpy.nanmean(stft_d) - mad(stft_d) #obtain a noise basis
 
     stft_r = librosa.stft(data,n_fft=512,window=fast_hamming) #get complex representation
     stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
@@ -173,19 +224,18 @@ def denoise1(data: numpy.ndarray):
     stft_vr = stft_vr/numpy.amax(stft_vr) #normalize to 0,1
 
 
-    t = threshhold(stft_vr[stft_vr>=t])  #obtain the halfway threshold
-  
-    mask_two = numpy.where(stft_vr>=t, 1.0,r)
-    mask_two_ = filter(mask_two) 
-    mask_two_[mask_one == 0] = r #absolutely prune the true noise floor
-    
-
-    stft_r = stft_r * mask_two_
+    t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
+    mask_two = numpy.where(stft_vr>=t, 1.0,0)
+    mask_two_1 = filter_wrapper_50(mask_two)
+    mask_two_2 = filter(mask_two)
+    #we now have two filters, and we should select criteria among them
+    mask = numpy.where(stft_vr>=t/2,mask_two_2,mask_two_1)
+    mask /= numpy.amax(mask) #correct basis
+    mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
+    stft_r = stft_r * mask
     processed = librosa.istft(stft_r,window=fast_hamming)
     return processed
 
-def denoise(data: numpy.ndarray):
-    return denoise1(data)
 
 class StreamSampler(object):
     dtype_to_paformat = {
