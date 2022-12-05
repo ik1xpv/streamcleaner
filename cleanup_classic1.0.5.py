@@ -557,9 +557,31 @@ def filter(x):
 def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array
 
-    #doublespectrum  = ds(data) #for later, this function is not optimized enough for realtime
-    
+    #doublespectrum  = ds(data)
+   
 
+    stft_r = librosa.stft(data,n_fft=512,window=broken_hamming) #get complex representation
+    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
+    Y = stft_vr[~numpy.isnan(stft_vr)]
+    max = numpy.where(numpy.isinf(Y),0,Y).argmax()
+    max = Y[max]
+    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
+    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
+    stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr)
+    plt.imshow(stft_vr)
+    plt.show()
+    ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
+    ent=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis 
+    t1 = atd(ent)
+    ent[ent<t1] = 0
+    ent[ent>0] = 1
+
+    t = threshhold(stft_vr)     
+    mask_one = numpy.where(stft_vr>=t, 1,0)
+    stft_demo = numpy.where(mask_one == 0, stft_vr,0)
+    stft_d = stft_demo.flatten()
+    stft_d = stft_d[stft_d>0]
+    r = man(stft_d) #obtain a noise background basis
 
     stft_r = librosa.stft(data,n_fft=512,window=fast_hamming) #get complex representation
     stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
@@ -569,24 +591,16 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
-    ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr)
-    ent=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis    
-
-    t = threshhold(stft_vr)     
-    mask_one = numpy.where(stft_vr>=t, 1,0)
-    stft_demo = numpy.where(mask_one == 0, stft_vr,0)
-    stft_d = stft_demo.flatten()
-    stft_d = stft_d[stft_d>0]
-    r = man(stft_d) #obtain a noise background basis
-
 
 
     t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
     mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
-    ent[ent<0.5] = 0.5
+
+    arr1_interp =  interp.interp1d(np.arange(ent.size),ent)
+    ent = arr1_interp(np.linspace(0,ent.size-1,stft_r.shape[1]))
 
 
-    mask = mask_two * ent[None,:] #reduce noise using an entropy filter
+    mask = mask_two * ent[None,:] #remove regions from the mask that are noise
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
 
     mask = filter_wrapper_50(mask)
@@ -595,7 +609,15 @@ def denoise(data: numpy.ndarray):
 
      
     stft_r = stft_r * mask
-
+    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
+    Y = stft_vr[~numpy.isnan(stft_vr)]
+    max = numpy.where(numpy.isinf(Y),0,Y).argmax()
+    max = Y[max]
+    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
+    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
+    stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr)
+    plt.imshow(stft_vr)
+    plt.show()
     processed = librosa.istft(stft_r,window=fast_hamming)
     return processed
 
