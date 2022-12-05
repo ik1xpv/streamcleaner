@@ -570,11 +570,6 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
     ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr)
-
-    sz = ent.size /1000
-    sz = sz * 150 #use a 12ms filter
-    sz = numpy.rint(sz).astype(int)
-    ent = moving_average(ent,sz)
     ent=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis    
 
     t = threshhold(stft_vr)     
@@ -588,7 +583,7 @@ def denoise(data: numpy.ndarray):
 
     t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
     mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
-
+    ent[ent<0.5] = 0.5
 
 
     mask = mask_two * ent[None,:] #reduce noise using an entropy filter
