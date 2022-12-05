@@ -1,6 +1,6 @@
 #idea and code and bugs by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup_classic1.0.5.py
+#cleanup_classic1.1.0.py
 
 #12/5/2022 : Warning. This is only an experiment and not for the faint of heart
 #For proper denoising, you can use denoising tools built into your SDR, or use VST plugins.
