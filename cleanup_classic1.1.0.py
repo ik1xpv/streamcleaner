@@ -604,7 +604,7 @@ def denoise(data: numpy.ndarray):
     mask = mask_two * ent[None,:] #remove regions from the mask that are noise
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
     mask = filter_wrapper_50(mask)
-        if factor < 0.07:
+    if factor < 0.07:
       mask[:] = r #there is no signal here, and therefore, there is no point in attempting to mask.
     #we now have two filters, and we should select criteria among them
     mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
