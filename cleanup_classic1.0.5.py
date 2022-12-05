@@ -490,7 +490,7 @@ def ds(data: numpy.ndarray):
 #for an immediate(perhaps dramatic) speed boost.
 
 
-@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True,parallel=True,nogil=True)
+@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True)
 def numba_adjacent_filter(data: numpy.ndarray):
         normal = data.copy()
         transposed = data.copy()
