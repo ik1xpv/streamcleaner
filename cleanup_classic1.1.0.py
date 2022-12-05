@@ -1,21 +1,40 @@
+'''
+Copyright 2022 Joshuah Rainstar
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+'''
+
 #idea and code and bugs by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
 #cleanup_classic1.1.0.py
 
-#12/5/2022 : Warning. This is only an experiment and not for the faint of heart
-#For proper denoising, you can use denoising tools built into your SDR, or use VST plugins.
-#One excellent plugin is acon digital denoise 2. It is realtime. But it does cost $99.
+#12/5/2022 : For best results, i recommend combining this with dynamic expansion and compression.
+
+
 #This experiment is intended to explore improvements to common threshholding and denoising methods in a domain
 #which is readily accessible for experimentation, namely simple scripting without any complex languages or compilers.
 #Python's performance has come a long way and with numpy, numba, and a little optimization, it is closer to c++.
-#Therefore consider this merely a testbed. Feel free to try your own algorithms and optimizations in here.
-#At the moment, this testbed is hosting an improvised thresholding algorithm.
-#This is inspired by the noisereduce python library, which works somewhat well but was designed for bird calls.
-#The algorithm assumes that the signal is above the noise floor, attempts to estimate the noise floor, and then
+#Consider this a challenge. Can you do better or improve this algorithm?. 
+
+#Feel free to try your own algorithms and optimizations.
+
+
+#My efforts were originally inspired by the noisereduce python library, which works somewhat well but was designed for bird calls.
+#This  algorithm assumes that the signal is above the noise floor, attempts to estimate the noise floor, and then
 #calculates a threshold high enough to identify the voice formant waveform ridges, which is then softened to form
 #a "contour" around the signal. It also works well on CW and some data modes, but is only intended for listening.
 #Science has concluded the harsher the noise, the more it stresses the listener. It can be harmful to health.
-#We recommend using this in a pipeline with an expander(agc) after the noise reduction.
+#Therefore the use of a denoising plugin which is effective is beneficial, and improves intelligability. 
+
+
 #How to use this file:
 #you will need 1 virtual audio cable- try https://vb-audio.com/Cable/ if you use windows.
 #install and configure the virtual audio cable and your speakers for 16 bits, 48000hz, two channels.
