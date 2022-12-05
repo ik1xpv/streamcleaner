@@ -568,9 +568,9 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr)
-    plt.imshow(stft_vr)
-    plt.show()
     ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
+    trend = moving_average(ent,20)
+    factor = numpy.max(trend)
     ent=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis 
     t1 = atd(ent)
     ent[ent<t1] = 0
@@ -600,24 +600,18 @@ def denoise(data: numpy.ndarray):
     ent = arr1_interp(np.linspace(0,ent.size-1,stft_r.shape[1]))
 
 
+
     mask = mask_two * ent[None,:] #remove regions from the mask that are noise
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
-
     mask = filter_wrapper_50(mask)
+        if factor < 0.07:
+      mask[:] = r #there is no signal here, and therefore, there is no point in attempting to mask.
     #we now have two filters, and we should select criteria among them
     mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
 
      
     stft_r = stft_r * mask
-    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
-    Y = stft_vr[~numpy.isnan(stft_vr)]
-    max = numpy.where(numpy.isinf(Y),0,Y).argmax()
-    max = Y[max]
-    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
-    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
-    stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr)
-    plt.imshow(stft_vr)
-    plt.show()
+ 
     processed = librosa.istft(stft_r,window=fast_hamming)
     return processed
 
