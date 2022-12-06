@@ -185,20 +185,19 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
 
-
-    t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
+    t = threshhold(stft_vr[stft_vr>=t])  #obtain the halfway threshold
     mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
-
 
     mask = mask_two * ent[None,:] #remove regions from the mask that are noise
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
+
     mask = numpyfilter_wrapper_50(mask)
+    mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
+
     if factor < 0.0777: #unknown the exact most precise, correct option
       mask[:] = r #there is no signal here, and therefore, there is no point in attempting to mask.
-    #we now have two filters, and we should select criteria among them
     else:
-      mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
-
+        mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
      
     stft_r = stft_r * mask
  
