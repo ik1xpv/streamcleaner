@@ -69,7 +69,6 @@ import os
 import numpy
 import numpy as np
 
-import numba
 import pyaudio
 import librosa
 import warnings
@@ -500,87 +499,45 @@ def ds(data: numpy.ndarray):
 
   return result_r
 
-#it's possible im doing this wrong and this could be done faster with a native numpy function.
-#all we do here is take the 2d image and the transpose of the image, and unravel them both.
-#given that the ravel in this case doesn't edit the contents(ie a different formant or transpose AFTER the ravel),
-#the ravel is just a view- any change to the flattened form happens to the primary form.
-#We then smooth both, and then transpose back the transposed copy, and recombine them.
-#as a result we have our 2d smoothing with nearest neighbor. 
-#@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True,parallel=True,nogil=True)
-#replacing the decorator with the above will speed up the code, but its possible to make changes(to this function body)
-#that could then cause improper memory access/writing and crash python, so I don't use it by default, but you can swap it
-#for an immediate(perhaps dramatic) speed boost.
+
+def numpy_adjacent_filter(data: numpy.ndarray):
+   normal = data.copy()
+   transposed = data.copy()
+   transposed = transposed.T
+   transposed_raveled = numpy.ravel(transposed)
+   normal_raveled = numpy.ravel(normal)
+   zeroth = numpy.zeros_like(normal_raveled)
 
 
-@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True)
-def numba_adjacent_filter(data: numpy.ndarray):
-        normal = data.copy()
-        transposed = data.copy()
-        transposed = transposed.T
-        transposed_raveled = numpy.ravel(transposed)
-        normal_raveled = numpy.ravel(normal)
-        zeroth = numpy.zeros_like(normal_raveled)
-        
-        for i in numba.prange(1,zeroth.size - 1):
-            zeroth[i] = (transposed_raveled[i - 1] + transposed_raveled[i] + transposed_raveled[i + 1]) / 3
-        
-        zeroth[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) / 3
-        zeroth[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2) / 3
-        transposed_raveled[:] = zeroth.copy()
-        transposed = transposed.T
 
-        for i in numba.prange(1,zeroth.size - 1):
-            zeroth[i] = (normal_raveled[i - 1] + normal_raveled[i] + normal_raveled[i + 1]) / 3
-        
-        zeroth[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) / 3
-        zeroth[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2) / 3
-        normal_raveled[:] = zeroth.copy()
+   A = numpy.zeros_like(transposed_raveled)
+   B = numpy.ravel(transposed_raveled[1:-2])
+   C = numpy.ravel(transposed_raveled[2:-1])
+   A[1:-2] = transposed_raveled[1:-2] + B[:] + C[:]
+   A[0] = (transposed_raveled[0] + transposed_raveled[1])/2
+   A[-1] = (transposed_raveled[-1] + transposed_raveled[-2])/2
+   transposed_raveled[:] = A/3
+   transposed = transposed.T
 
-        return (transposed + normal)/2
+   A = numpy.zeros_like(normal_raveled)
+   B = numpy.ravel(normal_raveled[1:-2])
+   C = numpy.ravel(normal_raveled[2:-1])
+   A[1:-2] = normal_raveled[1:-2] + B[:] + C[:]
+   A[0] = (normal_raveled[0] + normal_raveled[1])/2
+   A[-1] = (normal_raveled[-1] + normal_raveled[-2])/2
+   normal_raveled[:] = A/3
 
-@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True)
-def filter_wrapper_50(data: numpy.ndarray):
+   return (transposed + normal) /2
+
+def numpyfilter_wrapper_50(data: numpy.ndarray):
   d = data.copy()
   for i in range(50):
     d = numba_adjacent_filter(d)
   return d
 
-@numba.njit(cache=True)
-def loop(h, w, k, kernel, x_pad, out):
-    for row in range(h):
-      for col in range(w):
-        csum = 0.0
-        for i in range(-k, k+1):
-          csum += kernel[i+k] * x_pad[row+k, col+i+k]
-        out[row,col] = csum
-    return out
-
-
-def filter(x):
-    """Filter the image.
-    """
-    #sigma = 4.0
-    #var = sigma * sigma
-    k = 12 #int(3.0 * 4 + 0.5)
-    q = numpy.linspace(-k, k, 2*k+1)
-    kernel = numpy.exp(-0.5 * q * q / 16) #var)
-    kernel = kernel / numpy.sum(kernel)
-    h, w = x.shape
-    x_pad = numpy.pad(x[:, :], [(k,), (k,)], mode="edge")
-    horiz = numpy.empty_like(x, dtype=float)
-    horiz = loop(h, w, k, kernel, x_pad, horiz)
-    horiz = horiz.transpose((1, 0))
-    h, w = horiz.shape
-    x_pad = numpy.pad(horiz[:, :], [(k,), (k,)], mode="edge")
-    horiz = loop(h, w, k, kernel, x_pad, horiz)
-    horiz = horiz.transpose((1, 0)).astype(float)
-    return horiz
-
 def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array
-
-    #doublespectrum  = ds(data)
-   
+  
 
     stft_r = librosa.stft(data,n_fft=512,window=broken_hamming) #get complex representation
     stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
