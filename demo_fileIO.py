@@ -36,7 +36,6 @@ from time import time as time
 from librosa import stft, istft
 from scipy.io import wavfile
 from scipy.special import logit
-from scipy import interpolate as interp
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 
@@ -189,10 +188,6 @@ def denoise(data: numpy.ndarray):
 
     t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
     mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
-
-    arr1_interp =  interp.interp1d(numpy.arange(ent.size),ent)
-    ent = arr1_interp(numpy.linspace(0,ent.size-1,stft_r.shape[1]))
-
 
 
     mask = mask_two * ent[None,:] #remove regions from the mask that are noise
