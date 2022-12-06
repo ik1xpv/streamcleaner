@@ -119,38 +119,35 @@ def numba_adjacent_filter(data: numpy.ndarray):
 
 '''
     
-#slower- requires 20% more time
-def numpy_adjacent_filter(data: numpy.ndarray):
+def runningMeanFast(x, N):
+    return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
+
+#depending on presence of openblas, as fast as numba.  
+def numpy_convolve_filter(data: numpy.ndarray):
    normal = data.copy()
    transposed = data.copy()
    transposed = transposed.T
    transposed_raveled = numpy.ravel(transposed)
    normal_raveled = numpy.ravel(normal)
-   #[1:] = 1,2,3,4,5...16000
-   #numpy.roll(transposed_raveled, 1)[1:] = 0 ,1,2,3,4,5...15999
-   #numpy.roll(transposed_raveled, -1)[1:] = 2,3,4,5,6....0
 
-
-   A = transposed_raveled[1:-1] + transposed_raveled[0:-2] + transposed_raveled[2:]
+   A =  runningMeanFast(transposed_raveled, 3)
    transposed_raveled[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) /3
    transposed_raveled[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2)/3
-   transposed_raveled[1:-1] = A /3
+   transposed_raveled[1:-1] = A 
    transposed = transposed.T
 
 
-   A = normal_raveled[1:-1] + normal_raveled[0:-2] + normal_raveled[2:]
+   A =  runningMeanFast(normal_raveled, 3)
    normal_raveled[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) /3
    normal_raveled[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2)/3
-   normal_raveled[1:-1] = A/3
-
-
+   normal_raveled[1:-1] = A
    return (transposed + normal )/2
 
 
 def numpyfilter_wrapper_50(data: numpy.ndarray):
   d = data.copy()
   for i in range(50):
-    d = numpy_adjacent_filter(d)
+    d = numpy_convolve_filter(d)
   return d
 
 def denoise(data: numpy.ndarray):
