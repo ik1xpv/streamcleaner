@@ -58,7 +58,7 @@ def boxcar(M, sym=True):
         return w
 
 def moving_average(x, w):
-    return np.convolve(x, np.ones(w), 'same') / w
+    return numpy.convolve(x, numpy.ones(w), 'same') / w
 
 
 def man(arr):
