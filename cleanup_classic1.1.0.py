@@ -95,7 +95,6 @@ import dearpygui.dearpygui as dpg
 from scipy.signal._arraytools import const_ext, even_ext, odd_ext, zero_ext
 from scipy.signal.windows import get_window
 from scipy.signal.signaltools import detrend
-from scipy import interpolate as interp
 from scipy.special import logit
 from scipy import fftpack
 
@@ -584,9 +583,6 @@ def denoise(data: numpy.ndarray):
 
     t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
     mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
-
-    arr1_interp =  interp.interp1d(np.arange(ent.size),ent)
-    ent = arr1_interp(np.linspace(0,ent.size-1,stft_r.shape[1]))
 
 
 
