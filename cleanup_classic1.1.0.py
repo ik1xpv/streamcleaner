@@ -513,41 +513,37 @@ def ds(data: numpy.ndarray):
 
   return result_r
 
+def runningMeanFast(x, N):
+    return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
 
-def numpy_adjacent_filter(data: numpy.ndarray):
+#depending on presence of openblas, as fast as numba.  
+def numpy_convolve_filter(data: numpy.ndarray):
    normal = data.copy()
    transposed = data.copy()
    transposed = transposed.T
    transposed_raveled = numpy.ravel(transposed)
    normal_raveled = numpy.ravel(normal)
-   zeroth = numpy.zeros_like(normal_raveled)
 
-
-
-   A = numpy.zeros_like(transposed_raveled)
-   B = numpy.ravel(transposed_raveled[1:-2])
-   C = numpy.ravel(transposed_raveled[2:-1])
-   A[1:-2] = transposed_raveled[1:-2] + B[:] + C[:]
-   A[0] = (transposed_raveled[0] + transposed_raveled[1])/2
-   A[-1] = (transposed_raveled[-1] + transposed_raveled[-2])/2
-   transposed_raveled[:] = A/3
+   A =  runningMeanFast(transposed_raveled, 3)
+   transposed_raveled[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) /3
+   transposed_raveled[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2)/3
+   transposed_raveled[1:-1] = A 
    transposed = transposed.T
 
-   A = numpy.zeros_like(normal_raveled)
-   B = numpy.ravel(normal_raveled[1:-2])
-   C = numpy.ravel(normal_raveled[2:-1])
-   A[1:-2] = normal_raveled[1:-2] + B[:] + C[:]
-   A[0] = (normal_raveled[0] + normal_raveled[1])/2
-   A[-1] = (normal_raveled[-1] + normal_raveled[-2])/2
-   normal_raveled[:] = A/3
 
-   return (transposed + normal) /2
+   A =  runningMeanFast(normal_raveled, 3)
+   normal_raveled[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) /3
+   normal_raveled[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2)/3
+   normal_raveled[1:-1] = A
+   return (transposed + normal )/2
+
 
 def numpyfilter_wrapper_50(data: numpy.ndarray):
   d = data.copy()
   for i in range(50):
-    d = numba_adjacent_filter(d)
+    d = numpy_convolve_filter(d)
   return d
+
 
 def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array
