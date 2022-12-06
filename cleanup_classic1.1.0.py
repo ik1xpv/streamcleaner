@@ -597,7 +597,7 @@ def denoise(data: numpy.ndarray):
       mask[:] = r #there is no signal here, and therefore, there is no point in attempting to mask.
     #we now have two filters, and we should select criteria among them
     else:
-        mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
+      mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
 
      
     stft_r = stft_r * mask
