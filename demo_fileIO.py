@@ -94,32 +94,32 @@ def entropy(data: numpy.ndarray):
 #faster- but requires import numba
 @numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True)
 def numba_adjacent_filter(data: numpy.ndarray):
-        normal = data.copy()
-        transposed = data.copy()
-        transposed = transposed.T
-        transposed_raveled = numpy.ravel(transposed)
-        normal_raveled = numpy.ravel(normal)
-        zeroth = numpy.zeros_like(normal_raveled)
-        
-        for i in range(1,zeroth.size - 1):
-            zeroth[i] = (transposed_raveled[i - 1] + transposed_raveled[i] + transposed_raveled[i + 1]) / 3
-        
-        zeroth[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) / 3
-        zeroth[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2) / 3
-        transposed_raveled[:] = zeroth.copy()
-        transposed = transposed.T
+   normal = data.copy()
+   transposed = data.copy()
+   transposed = transposed.T
+   transposed_raveled = numpy.ravel(transposed)
+   normal_raveled = numpy.ravel(normal)
+   #[1:] = 1,2,3,4,5...16000
+   #numpy.roll(transposed_raveled, 1)[1:] = 0 ,1,2,3,4,5...15999
+   #numpy.roll(transposed_raveled, -1)[1:] = 2,3,4,5,6....0
 
-        for i in range(1,zeroth.size - 1):
-            zeroth[i] = (normal_raveled[i - 1] + normal_raveled[i] + normal_raveled[i + 1]) / 3
-        
-        zeroth[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) / 3
-        zeroth[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2) / 3
-        normal_raveled[:] = zeroth.copy()
 
-        return (transposed + normal)/2
+   A = transposed_raveled[1:-1] + transposed_raveled[0:-2] + transposed_raveled[2:]
+   transposed_raveled[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) /3
+   transposed_raveled[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2)/3
+   transposed_raveled[1:-1] = A /3
+   transposed = transposed.T
+
+
+   A = normal_raveled[1:-1] + normal_raveled[0:-2] + normal_raveled[2:]
+   normal_raveled[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) /3
+   normal_raveled[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2)/3
+   normal_raveled[1:-1] = A/3
+   return (transposed + normal )/2
+
 '''
     
-#slow- requires twice the time
+#slower- requires 20% more time
 def numpy_adjacent_filter(data: numpy.ndarray):
    normal = data.copy()
    transposed = data.copy()
@@ -131,25 +131,26 @@ def numpy_adjacent_filter(data: numpy.ndarray):
    #numpy.roll(transposed_raveled, -1)[1:] = 2,3,4,5,6....0
 
 
-   A = transposed_raveled[1:] +  numpy.roll(transposed_raveled, 1)[1:] + numpy.roll(transposed_raveled, -1)[1:]
+   A = transposed_raveled[1:-1] + transposed_raveled[0:-2] + transposed_raveled[2:]
    transposed_raveled[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) /3
    transposed_raveled[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2)/3
-   transposed_raveled[1:-1] = A[:-1] /3
+   transposed_raveled[1:-1] = A /3
    transposed = transposed.T
 
 
-   A = normal_raveled[1:] +  numpy.roll(normal_raveled, 1)[1:] + numpy.roll(normal_raveled, -1)[1:]
+   A = normal_raveled[1:-1] + normal_raveled[0:-2] + normal_raveled[2:]
    normal_raveled[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) /3
    normal_raveled[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2)/3
-   normal_raveled[1:-1] = A[:-1]/3
+   normal_raveled[1:-1] = A/3
 
 
    return (transposed + normal )/2
 
+
 def numpyfilter_wrapper_50(data: numpy.ndarray):
   d = data.copy()
   for i in range(50):
-    d = numba_adjacent_filter(d)
+    d = numpy_adjacent_filter(d)
   return d
 
 def denoise(data: numpy.ndarray):
