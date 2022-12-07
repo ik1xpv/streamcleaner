@@ -31,10 +31,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #idea and code and bugs by Joshuah Rainstar   : 
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup_classic1.1.0.py
+#cleanup_classic1.1.1.py
+
 
 #12/5/2022 : For best results, i recommend combining this with dynamic expansion and compression.
-
+#12/7/2022: improved entropy function for performance, made it more robust against noise.
 
 #This experiment is intended to explore improvements to common threshholding and denoising methods in a domain
 #which is readily accessible for experimentation, namely simple scripting without any complex languages or compilers.
@@ -85,16 +86,13 @@ import numpy as np
 
 import pyaudio
 import librosa
+from librosa import stft,istft
 import warnings
 import scipy
 
 from time import sleep
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
-
-from scipy.signal._arraytools import const_ext, even_ext, odd_ext, zero_ext
-from scipy.signal.windows import get_window
-from scipy.signal.signaltools import detrend
 from scipy.special import logit
 from scipy import fftpack
 
@@ -113,267 +111,6 @@ def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'same') / w
 
 
-def _triage_segments(window, nperseg, input_length):
-    """
-    Parses window and nperseg arguments for spectrogram and _spectral_helper.
-    This is a helper function, not meant to be called externally.
-    Parameters
-    ----------
-    window : string, tuple, or ndarray
-        If window is specified by a string or tuple and nperseg is not
-        specified, nperseg is set to the default of 256 and returns a window of
-        that length.
-        If instead the window is array_like and nperseg is not specified, then
-        nperseg is set to the length of the window. A ValueError is raised if
-        the user supplies both an array_like window and a value for nperseg but
-        nperseg does not equal the length of the window.
-    nperseg : int
-        Length of each segment
-    input_length: int
-        Length of input signal, i.e. x.shape[-1]. Used to test for errors.
-    Returns
-    -------
-    win : ndarray
-        window. If function was called with string or tuple than this will hold
-        the actual array used as a window.
-    nperseg : int
-        Length of each segment. If window is str or tuple, nperseg is set to
-        256. If window is array_like, nperseg is set to the length of the
-        window.
-    """
-    # parse window; if array like, then set nperseg = win.shape
-    if isinstance(window, str) or isinstance(window, tuple):
-        # if nperseg not specified
-        if nperseg is None:
-            nperseg = 256  # then change to default
-        if nperseg > input_length:
-            warnings.warn('nperseg = {0:d} is greater than input length '
-                          ' = {1:d}, using nperseg = {1:d}'
-                          .format(nperseg, input_length))
-            nperseg = input_length
-        win = get_window(window, nperseg)
-    else:
-        win = np.asarray(window)
-        if len(win.shape) != 1:
-            raise ValueError('window must be 1-D')
-        if input_length < win.shape[-1]:
-            raise ValueError('window is longer than input signal')
-        if nperseg is None:
-            nperseg = win.shape[0]
-        elif nperseg is not None:
-            if nperseg != win.shape[0]:
-                raise ValueError("value specified for nperseg is different"
-                                 " from length of window")
-    return win, nperseg
-
-def spectral_helper(x, fs=1.0, window='hann', nperseg=None, noverlap=None,
-                     nfft=None, detrend='constant', return_onesided=True,
-                     scaling='density', axis=-1, mode='psd', boundary=None,
-                     padded=False):
-
-    if mode not in ['psd', 'stft']:
-        raise ValueError("Unknown value for mode %s, must be one of: "
-                         "{'psd', 'stft'}" % mode)
-
-    boundary_funcs = {'even': even_ext,
-                      'odd': odd_ext,
-                      'constant': const_ext,
-                      'zeros': zero_ext,
-                      None: None}
-
-    if boundary not in boundary_funcs:
-        raise ValueError("Unknown boundary option '{0}', must be one of: {1}"
-                         .format(boundary, list(boundary_funcs.keys())))
-
-    # If x and y are the same object we can save ourselves some computation.
-    same_data = True
-    y = []
-
-    if not same_data and mode != 'psd':
-        raise ValueError("x and y must be equal if mode is 'stft'")
-
-    axis = int(axis)
-
-    # Ensure we have np.arrays, get outdtype
-    x = np.asarray(x)
-    if not same_data:
-        y = np.asarray(y)
-        outdtype = np.result_type(x, y, np.complex64)
-    else:
-        outdtype = np.result_type(x, np.complex64)
-
-    if not same_data:
-        # Check if we can broadcast the outer axes together
-        xouter = list(x.shape)
-        youter = list(y.shape)
-        xouter.pop(axis)
-        youter.pop(axis)
-        try:
-            outershape = np.broadcast(np.empty(xouter), np.empty(youter)).shape
-        except ValueError as e:
-            raise ValueError('x and y cannot be broadcast together.') from e
-
-    if same_data:
-        if x.size == 0:
-            return np.empty(x.shape), np.empty(x.shape), np.empty(x.shape)
-    else:
-        if x.size == 0 or y.size == 0:
-            outshape = outershape + (min([x.shape[axis], y.shape[axis]]),)
-            emptyout = np.moveaxis(np.empty(outshape), -1, axis)
-            return emptyout, emptyout, emptyout
-
-    if x.ndim > 1:
-        if axis != -1:
-            x = np.moveaxis(x, axis, -1)
-            if not same_data and y.ndim > 1:
-                y = np.moveaxis(y, axis, -1)
-
-    # Check if x and y are the same length, zero-pad if necessary
-    if not same_data:
-        if x.shape[-1] != y.shape[-1]:
-            if x.shape[-1] < y.shape[-1]:
-                pad_shape = list(x.shape)
-                pad_shape[-1] = y.shape[-1] - x.shape[-1]
-                x = np.concatenate((x, np.zeros(pad_shape)), -1)
-            else:
-                pad_shape = list(y.shape)
-                pad_shape[-1] = x.shape[-1] - y.shape[-1]
-                y = np.concatenate((y, np.zeros(pad_shape)), -1)
-
-    if nperseg is not None:  # if specified by user
-        nperseg = int(nperseg)
-        if nperseg < 1:
-            raise ValueError('nperseg must be a positive integer')
-
-    # parse window; if array like, then set nperseg = win.shape
-    win, nperseg = _triage_segments(window, nperseg, input_length=x.shape[-1])
-
-    if nfft is None:
-        nfft = nperseg
-    elif nfft < nperseg:
-        raise ValueError('nfft must be greater than or equal to nperseg.')
-    else:
-        nfft = int(nfft)
-
-    if noverlap is None:
-        noverlap = nperseg//2
-    else:
-        noverlap = int(noverlap)
-    if noverlap >= nperseg:
-        raise ValueError('noverlap must be less than nperseg.')
-    nstep = nperseg - noverlap
-
-    # Padding occurs after boundary extension, so that the extended signal ends
-    # in zeros, instead of introducing an impulse at the end.
-    # I.e. if x = [..., 3, 2]
-    # extend then pad -> [..., 3, 2, 2, 3, 0, 0, 0]
-    # pad then extend -> [..., 3, 2, 0, 0, 0, 2, 3]
-
-    if boundary is not None:
-        ext_func = boundary_funcs[boundary]
-        x = ext_func(x, nperseg//2, axis=-1)
-        if not same_data:
-            y = ext_func(y, nperseg//2, axis=-1)
-
-    if padded:
-        # Pad to integer number of windowed segments
-        # I.e make x.shape[-1] = nperseg + (nseg-1)*nstep, with integer nseg
-        nadd = (-(x.shape[-1]-nperseg) % nstep) % nperseg
-        zeros_shape = list(x.shape[:-1]) + [nadd]
-        x = np.concatenate((x, np.zeros(zeros_shape)), axis=-1)
-        if not same_data:
-            zeros_shape = list(y.shape[:-1]) + [nadd]
-            y = np.concatenate((y, np.zeros(zeros_shape)), axis=-1)
-
-    # Handle detrending and window functions
-    if not detrend:
-        def detrend_func(d):
-            return d
-    elif not hasattr(detrend, '__call__'):
-        def detrend_func(d):
-            return detrend(d, type=detrend, axis=-1)
-    elif axis != -1:
-        # Wrap this function so that it receives a shape that it could
-        # reasonably expect to receive.
-        def detrend_func(d):
-            d = np.moveaxis(d, -1, axis)
-            d = detrend(d)
-            return np.moveaxis(d, axis, -1)
-    else:
-        detrend_func = detrend
-
-    if np.result_type(win, np.complex64) != outdtype:
-        win = win.astype(outdtype)
-
-    if scaling == 'density':
-        scale = 1.0 / (fs * (win*win).sum())
-    elif scaling == 'spectrum':
-        scale = 1.0 / win.sum()**2
-    else:
-        raise ValueError('Unknown scaling: %r' % scaling)
-
-    if mode == 'stft':
-        scale = np.sqrt(scale)
-
-    if return_onesided:
-        if np.iscomplexobj(x):
-            sides = 'twosided'
-            warnings.warn('Input data is complex, switching to '
-                          'return_onesided=False')
-        else:
-            sides = 'onesided'
-            if not same_data:
-                if np.iscomplexobj(y):
-                    sides = 'twosided'
-                    warnings.warn('Input data is complex, switching to '
-                                  'return_onesided=False')
-
-    # Perform the windowed FFTs
-    result = _fft_helper(x, win, detrend_func, nperseg, noverlap, nfft, sides)
-
-   
-
-    result *= scale
-    if sides == 'onesided' and mode == 'psd':
-        if nfft % 2:
-            result[..., 1:] *= 2
-        else:
-            # Last point is unpaired Nyquist freq point, don't double
-            result[..., 1:-1] *= 2
-
-    result = result.astype(outdtype)
-
-    # All imaginary parts are zero anyways
-    if same_data and mode != 'stft':
-        result = result.real
-
-    # Output is going to have new last axis for time/window index, so a
-    # negative axis index shifts down one
-    if axis < 0:
-        axis -= 1
-
-    # Roll frequency axis back to axis where the data came from
-    result = np.moveaxis(result, -1, axis)
-
-    return result
-
-
-def _fft_helper(x, win, detrend_func, nperseg, noverlap, nfft, sides):
-
-    # Created strided array of data segments
-    if nperseg == 1 and noverlap == 0:
-        result = x[..., numpy.newaxis]
-    else:
-        # https://stackoverflow.com/a/5568169
-        step = nperseg - noverlap
-        shape = x.shape[:-1]+((x.shape[-1]-noverlap)//step, nperseg)
-        strides = x.strides[:-1]+(step*x.strides[-1], x.strides[-1])
-        result = np.lib.stride_tricks.as_strided(x, shape=shape,
-                                                 strides=strides)
-
-    # Detrend each data segment individually
-    return result
-
 def fast_hamming(M, sym=True):
     a = [0.5, 0.5]
     fac = numpy.linspace(-numpy.pi, numpy.pi, M)
@@ -382,7 +119,7 @@ def fast_hamming(M, sym=True):
         w += a[k] * numpy.cos(k * fac)
     return w
 
-def broken_hamming(M, sym=True):
+def boxcar(M, sym=True):
     a = [0.5, 0.5]
     fac = numpy.linspace(-numpy.pi, numpy.pi, M)
     w = numpy.zeros(M)
@@ -390,7 +127,7 @@ def broken_hamming(M, sym=True):
         w += a[k] * numpy.cos(k * fac)
         return w
 
-def cosine_bell(M, sym=True):
+def hann(M, sym=True):
     a = [0.5, 0.5]
     fac = numpy.linspace(-numpy.pi, numpy.pi, M)
     w = numpy.zeros(M)
@@ -425,92 +162,17 @@ def threshhold(arr):
 
 
 def entropy(data: numpy.ndarray):
-    a = data.copy()
-    a = numpy.sort(a)
-    scaled = numpy.interp(a, (a.min(), a.max()), (-6, +6))
+    a = numpy.sort(data)
+    scaled = numpy.interp(a, (a[0], a[-1]), (-6, +6))
     fprint = numpy.linspace(0, 1, a.size)
     y = logit(fprint)
-    y[y == -numpy.inf] = -6
-    y[y == +numpy.inf] = 6
+    y[0] = -6
+    y[-1] = 6
     z = numpy.corrcoef(scaled, y)
     completeness = z[0, 1]
     sigma = 1 - completeness
     return sigma
 
-def ds(data: numpy.ndarray):
-  data = data.copy() #i dont know why this is needed
-  frames = []
-
-  for each in chunks(data, 1200):
-      if each.size == 1200:
-          d_working = spectral_helper(each,window=numpy.sqrt(cosine_bell(1200)),mode='psd',nperseg=1200,noverlap=600,detrend=None).T
-          d_working = numpy.flip(d_working,axis=1)
-
-          mlt = scipy.fftpack.dct(d_working,type=4)
-
-
-          frames.append(mlt)
-      else:
-        each = padarray(each, 1200)
-        d_working = spectral_helper(each,window=numpy.sqrt(cosine_bell(1200)),mode='psd',nperseg=1200,noverlap=600,detrend=None).T
-        d_working = numpy.flip(d_working,axis=1)
-        mlt = scipy.fftpack.dct(d_working,type=4)
-
-
-        frames.append(mlt)
-
-   #L = 0, 1,...,L − 1 # frame index
-   #k = 0, 1,..., P˜0 − 1 # frequency channel index, respectively [5].
-   #The first transform outputs the MLT coefficients f (l, k) which slowly evolve over time for a periodic
-   #signal segment but rapidly changes for an aperiodic segment.
-
-
-   #todo: apply the pitch shifting transform/interpolation.
-
-   #Modulation Transform: By applying a pitch-synchronous
-   #transform on speech signal we obtain L consecutive MLT coefficient frames.  = nframes
-   #These MLT coefficients are then merged into one segment.
-  nframes = len(frames) #get the number of frames
-  frames = numpy.asarray(frames)
-  frames = numpy.squeeze(frames)
-
-   
-   # A DCT-II is applied to perform the modulation transform on this segment for each frequency channel
-   #k = 0, ··· , K − 1. The choice of DCT-II together with a rectangular window facilitates the implementation of the modulation
-   #transform as a critically sampled filter [25] which takes into
-   #account the rapid onsets of speech
-  #nperseg = nsamples 
-  #The outcome of the TBS is a constant number of time frames L per time block (of length P˜0) and thus a fixed number of modulation bands Q per DS.
-  #therefore
-  #l = nframes * 2
-  #As a trade-off between male and female speakers, we choose Q = L = 4, used in our experiments.
-
-
-  #at 48000 samples:
-  #a time block here of p0 is 600, which is transformed in 1200 chunks and becomes 40 frequency channel indexes and 1200 samples in one second.
-  # Now do we just use k? no, we have to use L. L, coincidentally, for this format, is 160(twice the number of time frames) because each frame isn't p0  but 2*p0
-  second_frames = []
-  l = nframes * 2
-
-  for each in range(nframes):
-      
-          d_working = spectral_helper(frames[each,:],window=cosine_bell(l),mode='psd',nperseg=l,noverlap=l//2,detrend=None)
-          mlt = scipy.fftpack.dct(d_working,type=2)
-          second_frames.append(mlt)
-  frames = numpy.asarray(second_frames)
-  frames = numpy.rot90(frames)
-  frames = frames.reshape(l,-1)
-  frames = numpy.flip(frames,axis=0)
-
-  result_r = numpy.square(frames.real) + numpy.square(frames.imag) #obtain absolute**2
-  Y = result_r[~numpy.isnan(result_r)]
-  max = numpy.where(numpy.isinf(Y),0,Y).argmax()
-  max = Y[max]
-  result_r = numpy.nan_to_num(result_r, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
-  result_r = numpy.sqrt(result_r) #stft_vr >= 0 
-  result_r=(result_r-np.nanmin(result_r))/np.ptp(result_r)
-
-  return result_r
 
 def runningMeanFast(x, N):
     return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
@@ -544,11 +206,10 @@ def numpyfilter_wrapper_50(data: numpy.ndarray):
   return d
 
 
-def denoise(data: numpy.ndarray):
-    data= numpy.asarray(data,dtype=float) #correct byte order of array
-  
+def denoise1(data: numpy.ndarray):
+    data= numpy.asarray(data,dtype=float) #correct byte order of array   
 
-    stft_r = librosa.stft(data,n_fft=512,window=broken_hamming) #get complex representation
+    stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
     Y = stft_vr[~numpy.isnan(stft_vr)]
     max = numpy.where(numpy.isinf(Y),0,Y).argmax()
@@ -556,13 +217,8 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr)
-    ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
-    trend = moving_average(ent,20)
-    factor = numpy.max(trend)
-    ent=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis 
-    t1 = atd(ent)
-    ent[ent<t1] = 0
-    ent[ent>0] = 1
+    ent1 = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
+    ent1 = ent1 - numpy.min(ent1)
 
     t = threshhold(stft_vr)     
     mask_one = numpy.where(stft_vr>=t, 1,0)
@@ -570,8 +226,9 @@ def denoise(data: numpy.ndarray):
     stft_d = stft_demo.flatten()
     stft_d = stft_d[stft_d>0]
     r = man(stft_d) #obtain a noise background basis
-
-    stft_r = librosa.stft(data,n_fft=512,window=fast_hamming) #get complex representation
+    
+    stft_r = stft(data,n_fft=512,window=hann) #get complex representation
+    
     stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
     Y = stft_vr[~numpy.isnan(stft_vr)]
     max = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmax()
@@ -579,27 +236,48 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
+   
+    ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
+    ent = ent - numpy.min(ent)
+    ent  = moving_average(ent,14)
+    ent1  = moving_average(ent1,14)
+    #seems to be a reasonable compromise
+    minent = numpy.minimum(ent,ent1)
+    minent=(minent-numpy.nanmin(minent))/numpy.ptp(minent)#correct basis
+    maxent = numpy.maximum(ent,ent1)
+    
+    trend = moving_average(maxent,20)
+    factor = numpy.max(trend)
+    if factor < 0.057: #unknown the exact most precise, correct option.
+    #Lowest is 0.56, but this has a small chance of passing unwanted noise.
+    #highest with this entropy calculation mode is about 0.67. So somewhere between there, for fine tuning.
+      stft_r = stft_r * r
+      processed = istft(stft_r,window=hann)
+      return processed
+      #no point wasting cycles smoothing information which isn't there!
 
+    maxent=(maxent-numpy.nanmin(maxent))/numpy.ptp(maxent)#correct basis 
 
+    ent = (maxent+minent)
+    ent = ent - numpy.min(ent)
+    trend=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis 
+
+    t1 = atd(trend)/2 #unclear where to set this. too aggressive and it misses parts of syllables.
+    trend[trend<t1] = 0
+    trend[trend>0] = 1
     t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
     mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
 
-
-
-    mask = mask_two * ent[None,:] #remove regions from the mask that are noise
+    mask = mask_two * trend[None,:] #remove regions from the mask that are noise
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
     mask = numpyfilter_wrapper_50(mask)
-    if factor < 0.0777: #unknown the exact most precise, correct option
-      mask[:] = r #there is no signal here, and therefore, there is no point in attempting to mask.
-    #we now have two filters, and we should select criteria among them
-    else:
-      mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
+    
+    mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
 
-     
     stft_r = stft_r * mask
- 
-    processed = librosa.istft(stft_r,window=fast_hamming)
+    processed = istft(stft_r,window=hann)
     return processed
+
 
 import time
 def process_data(data: numpy.ndarray):
@@ -856,8 +534,8 @@ class StreamSampler(object):
 
         audio = self.rb.read(self._processing_size)
         chans = []
-        chans.append(denoise(audio[:, 0]))
-        chans.append(denoise(audio[:, 1]))
+        chans.append(denoise1(audio[:, 0]))
+        chans.append(denoise1(audio[:, 1]))
 
         return numpy.column_stack(chans).astype(self.dtype).tobytes(), pyaudio.paContinue
 
