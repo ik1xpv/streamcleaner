@@ -206,7 +206,7 @@ def numpyfilter_wrapper_50(data: numpy.ndarray):
   return d
 
 
-def denoise1(data: numpy.ndarray):
+def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
 
     stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
@@ -534,8 +534,8 @@ class StreamSampler(object):
 
         audio = self.rb.read(self._processing_size)
         chans = []
-        chans.append(denoise1(audio[:, 0]))
-        chans.append(denoise1(audio[:, 1]))
+        chans.append(denoise(audio[:, 0]))
+        chans.append(denoise(audio[:, 1]))
 
         return numpy.column_stack(chans).astype(self.dtype).tobytes(), pyaudio.paContinue
 
