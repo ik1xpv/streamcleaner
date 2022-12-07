@@ -21,7 +21,7 @@ I legally exempt anyone using the MIT and GPL license from any liability for the
 The algorithm itself seems simple enough, and that's how most things in life are- you try many different things
 until you find what works, and often enough as of not it's just a combination you hadn't considered before.
 All I really wanted from it was a way to squelch intelligently and better extract voice.
-None of this incorporated things I learned directly from other's research papers, but all of them influenced me and
+None of this incorporates things I learned directly from other's research papers, but all of them influenced me and
 if you look in the history you will see i attempted to implement a bunch of other methods to see what they could do.
 This work is a testament to the value of effort and determination moderated by patience and dilligence.
 If I can do it, you can do it.
