@@ -75,15 +75,13 @@ def aSNR(arr):
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
 
-
 def entropy(data: numpy.ndarray):
-    a = data.copy()
-    a = numpy.sort(a)
-    scaled = numpy.interp(a, (a.min(), a.max()), (-6, +6))
+    a = numpy.sort(data)
+    scaled = numpy.interp(a, (a[0], a[-1]), (-6, +6))
     fprint = numpy.linspace(0, 1, a.size)
     y = logit(fprint)
-    y[y == -numpy.inf] = -6
-    y[y == +numpy.inf] = 6
+    y[0] = -6
+    y[-1] = 6
     z = numpy.corrcoef(scaled, y)
     completeness = z[0, 1]
     sigma = 1 - completeness
@@ -149,7 +147,7 @@ def numpyfilter_wrapper_50(data: numpy.ndarray):
     d = numpy_convolve_filter(d)
   return d
 
-def denoise(data: numpy.ndarray):
+
 def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
 
@@ -161,14 +159,8 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr)
-    ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
-    #adjust this further to adapt to the width of your filter.
-    trend = moving_average(ent,20)
-    factor = numpy.max(trend)
-    ent=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis 
-    t1 = atd(ent)
-    ent[ent<t1] = 0
-    ent[ent>0] = 1
+    ent1 = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
+    ent1 = ent1 - numpy.min(ent1)
 
     t = threshhold(stft_vr)     
     mask_one = numpy.where(stft_vr>=t, 1,0)
@@ -176,8 +168,9 @@ def denoise(data: numpy.ndarray):
     stft_d = stft_demo.flatten()
     stft_d = stft_d[stft_d>0]
     r = man(stft_d) #obtain a noise background basis
-
+    
     stft_r = stft(data,n_fft=512,window=hann) #get complex representation
+    
     stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
     Y = stft_vr[~numpy.isnan(stft_vr)]
     max = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmax()
@@ -185,22 +178,45 @@ def denoise(data: numpy.ndarray):
     stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
     stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
+   
+    ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
+    ent = ent - numpy.min(ent)
+    ent  = moving_average(ent,14)
+    ent1  = moving_average(ent1,14)
+    #seems to be a reasonable compromise
+    minent = numpy.minimum(ent,ent1)
+    minent=(minent-numpy.nanmin(minent))/numpy.ptp(minent)#correct basis
+    maxent = numpy.maximum(ent,ent1)
+    
+    trend = moving_average(maxent,20)
+    factor = numpy.max(trend)
+    if factor < 0.057: #unknown the exact most precise, correct option.
+    #Lowest is 0.56, but this has a small chance of passing unwanted noise.
+    #highest with this entropy calculation mode is about 0.67. So somewhere between there, for fine tuning.
+      stft_r = stft_r * r
+      processed = istft(stft_r,window=hann)
+      return processed
+      #no point wasting cycles smoothing information which isn't there!
 
-    t = threshhold(stft_vr[stft_vr>=t])  #obtain the halfway threshold
+    maxent=(maxent-numpy.nanmin(maxent))/numpy.ptp(maxent)#correct basis 
+
+    ent = (maxent+minent)
+    ent = ent - numpy.min(ent)
+    trend=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis 
+
+    t1 = atd(trend)/2 #unclear where to set this. too aggressive and it misses parts of syllables.
+    trend[trend<t1] = 0
+    trend[trend>0] = 1
+    t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
     mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
 
-    mask = mask_two * ent[None,:] #remove regions from the mask that are noise
+    mask = mask_two * trend[None,:] #remove regions from the mask that are noise
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
-
     mask = numpyfilter_wrapper_50(mask)
+    
+    mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
 
-    if factor < 0.0777: #unknown the exact most precise, correct option
-      mask[:] = r #there is no signal here, and therefore, there is no point in attempting to mask.
-    else:
-        mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
-     
     stft_r = stft_r * mask
- 
     processed = istft(stft_r,window=hann)
     return processed
 
