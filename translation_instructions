@@ -144,4 +144,32 @@ Thirteen, the mask is normalized to 0,1.
 Fourteen, the hann short term fourier representation is multiplied by the mask, inverted using the inverse short
 term fourier transform, and returned.
 
+Necessary functions:
+Median_Absolute_Median_Nonzero_nonNan()
+Absolute_Standard_Deviation()
+Threshhold()
+Moving_Average_Convolve()
+Corrected_Logit()
+Entropy()
+Nearest_Neighbors_Average_2D()
+Nearest_Neighbors_iteration_50()
+Obtain_Magnitude()
+Cleanup():
 
+Variables used for cleanup:
+
+Boxcar_STFT
+Hann_STFT
+Boxcar_STFT_Magnitude
+Hann_STFT_Magnitude
+Boxcar_Threshold
+Noise_Basis
+Entropy_Boxcar
+Entropy_Hann
+Noise_Factor
+Maximums_Entropy
+Minimums_Entropy
+Entropy_Norm
+Norm_Deviation
+Hann_Peaks_Threshold
+Mask
