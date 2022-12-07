@@ -84,7 +84,8 @@ The fourth product is then returned.
 Cleanup
 Firstly, the data is sanitized and assumed to be floating point numbers.
 It is assumed that the input is at least 8000 samples per second, and that the input
-is at least 1 second of data.
+is at least 1 second of data. It may be possible to make this function run on smaller time durations with the only 
+deteriment being reduced certainty about the window contents as a whole.
 
 Secondly, two short term fourier transformations are produced, each with a fft bin size of 512 and a padding of 256.
 One is produced with a boxcar window, the other with the hann window.
@@ -99,6 +100,7 @@ the Median_Absolute_Median_Nonzero_nonNan is determined and saved as a noise bac
 Fourth, each magnitude representation is processed by time- each column's first 32 elements,
 where 32 is chosen as the number of frequency bins necessary to analyze most speech, is fed to 
 the entropy function, and then the product of this process is saved as a 1d array of time-comparisons.
+This assumes your short term fourier domain output produces a 2d array where frequency top to bottom is lowest to highest.
 From each such entropy array, it's minimum is subtracted from it.
 Each entropy array is processed with Moving_Average_Convolve and a window of 14 samples(30ms).
 
