@@ -150,6 +150,7 @@ def numpyfilter_wrapper_50(data: numpy.ndarray):
   return d
 
 def denoise(data: numpy.ndarray):
+def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
 
     stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
@@ -192,7 +193,6 @@ def denoise(data: numpy.ndarray):
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
 
     mask = numpyfilter_wrapper_50(mask)
-    mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
 
     if factor < 0.0777: #unknown the exact most precise, correct option
       mask[:] = r #there is no signal here, and therefore, there is no point in attempting to mask.
@@ -203,7 +203,6 @@ def denoise(data: numpy.ndarray):
  
     processed = istft(stft_r,window=hann)
     return processed
-
 
 def padarray(A, size):
     t = size - len(A)
