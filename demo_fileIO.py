@@ -35,7 +35,6 @@ from time import sleep
 from time import time as time
 from librosa import stft, istft
 from scipy.io import wavfile
-from scipy.special import logit
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 
@@ -75,17 +74,29 @@ def aSNR(arr):
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
 
+def corrected_logit(size):
+    fprint = numpy.linspace(0, 1, size)
+    fprint [1:-1] /= 1 - fprint [1:-1]
+    fprint [1:-1] = numpy.log(fprint [1:-1])
+    fprint[0] = -6
+    fprint[-1] = 6
+    return fprint
+
+#precalculate the logistic function for our entropy calculations.
+#save some cycles with redundancy.
+#change this value if you change your entropy window.
+logit = corrected_logit(32)
+
 def entropy(data: numpy.ndarray):
     a = numpy.sort(data)
     scaled = numpy.interp(a, (a[0], a[-1]), (-6, +6))
-    fprint = numpy.linspace(0, 1, a.size)
-    y = logit(fprint)
-    y[0] = -6
-    y[-1] = 6
-    z = numpy.corrcoef(scaled, y)
+    z = numpy.corrcoef(scaled, logit)
+    #inline the 
     completeness = z[0, 1]
     sigma = 1 - completeness
     return sigma
+
+
 
 '''
 #faster- but requires import numba
