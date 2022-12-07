@@ -77,8 +77,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #and configure the output for the program in that list to your speakers.
 
 #further recommendations:
-#I recommend adding 3db of ephram malah in your SDR(or speex, which is enhanced ephram-malah, if any of them have it)
-#and 10db of gain after this script, followed by an expander and a compressor- if you know how to use one.
+#I recommend the use of a notch filter to reduce false positives 
+#and 10db of gain after this script, followed by an expander and a compressor
 
 import os
 import numpy
@@ -145,16 +145,6 @@ def aSNR(arr):
 
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
-
-
-#https://sci-hub.se/10.1109/taslp.2017.2747082
-#New Results in Modulation-Domain Single-Channel Speech Enhancement
-#IEEE/ACM TRANSACTIONS ON AUDIO, SPEECH, AND LANGUAGE PROCESSING, VOL. 25, NO. 11, NOVEMBER 2017 2125
-#Pejman Mowlaee, Senior Member, IEEE, Martin Blass, Student Member, IEEE, and W. Bastiaan Kleijn, Fellow, IEEE
-#instantaneous pitch period P0 = 600 = 48000 / 80(fundemental pitch chosen)
-#Let L be the number of time frames within one time block, each of length P0
-#The MLT is implemented using the DCT-IV in combination with a square-root Hann window of length 2P˜0 and 50% overlap [25].
-
 
 
 def corrected_logit(size):
