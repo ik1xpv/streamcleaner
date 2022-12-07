@@ -85,16 +85,12 @@ import numpy
 import numpy as np
 
 import pyaudio
-import librosa
 from librosa import stft,istft
 import warnings
-import scipy
 
 from time import sleep
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
-from scipy.special import logit
-from scipy import fftpack
 
 
 def padarray(A, size):
@@ -161,17 +157,27 @@ def threshhold(arr):
 
 
 
+def corrected_logit(size):
+    fprint = numpy.linspace(0, 1, size)
+    fprint [1:-1] /= 1 - fprint [1:-1]
+    fprint [1:-1] = numpy.log(fprint [1:-1])
+    fprint[0] = -6
+    fprint[-1] = 6
+    return fprint
+
+#precalculate the logistic function for our entropy calculations.
+#save some cycles with redundancy.
+#since we only calculate entropy over a fixed window, we can store our logit.
+logit = corrected_logit(32)
+
 def entropy(data: numpy.ndarray):
     a = numpy.sort(data)
     scaled = numpy.interp(a, (a[0], a[-1]), (-6, +6))
-    fprint = numpy.linspace(0, 1, a.size)
-    y = logit(fprint)
-    y[0] = -6
-    y[-1] = 6
-    z = numpy.corrcoef(scaled, y)
+    z = numpy.corrcoef(scaled, logit)
     completeness = z[0, 1]
     sigma = 1 - completeness
     return sigma
+
 
 
 def runningMeanFast(x, N):
