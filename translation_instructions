@@ -1,0 +1,145 @@
+Instructions to assist implementation in other languages.
+
+Cleanup is a statistical noise similarity algorithm that operates in the time and amplitude domains.
+
+It relies on a number of statistical measures being available or implemented:
+
+Median_Absolute_Median_Nonzero_nonNan
+this function seeks to find a strong median floor value.
+Firstly, we find the median of all elements of an array which are not zero or NaN.
+Secondly, we subtract this number from the array, take the absolute of the result,
+and find the median of all elements of that resulting absolute array which are not NaN.
+
+Absolute_Standard_Deviation
+This function seeks to find a more robust deviation measure.
+Firstly, the square of the absolute difference between the array and the strong median floor value of said array
+is found, namely, square(abs(array - Median_Absolute_Median_Nonzero_nonNan(array))
+Secondly, the square root of the mean of all of the elements of the result of step 1 is obtained and returned.
+
+Threshhold
+This function seeks to find a robust threshholding measure, but in practice, it works to identify peaks 
+on the basis of being strong outliers.
+The function returns the Median_Absolute_Median_Nonzero_nonNan divided by the Absolute_Standard_Deviation.
+
+Cleanup also relies on a number of helper functions:
+
+Moving_Average_Convolve
+This function accepts a window size and an input 1d array.
+The 1d array is then convolved with an array of 1s corresponding to the size of the window,
+and the result is divided by the size of the window. Only the same number of elements as the input
+are returned, starting with the first.
+
+
+Corrected_Logit
+The logit function, not to be mistaken for the logistic function(despite the claim they are the same)
+is is the inverse of the standard logistic function.
+The corrected form of this is a function which accepts a size to produce and then produces
+a distribution of values approximating a logit curve of that size.
+First, a linearily spaced series is produced from 0 to 1 of that size.
+Second, all but the first and last are divided by 1 minus the corresponding elements.
+Thirdly, all but the first and last are replaced with the log of their value.
+Finally, the first is replaced with -6, and the last with 6, to produce a smooth distribution
+approximating the logit function from -6 to 6.
+
+Entropy
+This function seeks to model the noise similarity of the input assuming the distribution is not dissimilar
+to guassian noise. 
+Firstly, the input array, which is 1d, is sorted from smallest to largest.
+Secondly, the values are interpolated from between the values of the first and last(smallest and largest)
+to between -6 and 6.
+Thirdly, the Pearson product-moment correlation coefficients of the comparison betweeen the product of the second
+step and the product of Corrected_Logit(size of the input to entropy) is obtained.
+This generally produces a set of numbers where 1 of them is equal to 1, and the other is equal to a distance measure.
+The function subtracts the distance measure from 1 to result in a small percentile number.
+The closer this number is to 0, the more the input resembles noise. 
+Generally anything smaller than 0.05 is absolutely noise, wheras anything over 0.067 may not be noise.
+
+
+
+Nearest_Neighbors_Average_2D
+This function seeks to use convolutional averaging in the 1d domain as an efficient smoothing approach.
+Firstly, the image is unraveled, which means a flat,1d representation is produced from the C-ordered 2d array,
+with each row being appended to the end of the last. All but the first and last elements of the unraveled copy
+are retained in a copy after the entire array is convolved with an array of three elements equalling 1/3rd. 
+This is accomplished using Moving_Average_Convolve.
+The first and last elements are added to half each of the second, third, and second to last, third to last respectively.
+The first and last are then divided by three and appended respectively to their place on the convolved copy.
+The result is then unraveled, meaning that the 2d representation is updated with the respective elements.
+This process is also conducted for a transposed copy of the original image, and it is transposed backwards after.
+The thus convolved copy and transposed-convolved-transposed copy are then added together and divided by two.
+
+Nearest_Neighbors_iteration_50
+The Nearest_Neighbors_Average_2D is called 50 times, iteratively smoothing an image.
+
+Obtain_Magnitude
+The input to this function is a complex valued 2d array.
+Firstly, the square of the real and the imaginary values are independently obtained and added together.
+Secondly, the array is sanitized- the real maximum value of the array disregarding infinite and Nan elements
+is determined, and then all NaN and negative infinite elements are replaced with zero, posinf with maximum.
+Thirdly, the square root of the product of the second step is obtained.
+Fourthly, each array minus it's minimum(if not zero) is divided by it's peak to peak difference.
+The fourth product is then returned.
+
+
+Cleanup
+Firstly, the data is sanitized and assumed to be floating point numbers.
+It is assumed that the input is at least 8000 samples per second, and that the input
+is at least 1 second of data.
+
+Secondly, two short term fourier transformations are produced, each with a fft bin size of 512 and a padding of 256.
+One is produced with a boxcar window, the other with the hann window.
+Only the hann window can be used for perfect reconstruction.
+
+From each the magnitude representation is obtained.
+
+Third, a threshold is obtained on the boxcar magnitude representation using the Threshhold function,
+and, using only the elements less than the threshold which are greater than zero,
+the Median_Absolute_Median_Nonzero_nonNan is determined and saved as a noise background basis.
+
+Fourth, each magnitude representation is processed by time- each column's first 32 elements,
+where 32 is chosen as the number of frequency bins necessary to analyze most speech, is fed to 
+the entropy function, and then the product of this process is saved as a 1d array of time-comparisons.
+From each such entropy array, it's minimum is subtracted from it.
+Each entropy array is processed with Moving_Average_Convolve and a window of 14 samples(30ms).
+
+
+Fifthly, an array the size of the entropy array, containing the respective maximum values for each
+element selected from either the boxcar or hann time comparisons is produced.
+The respective maximum array is then smoothed by Moving_Average_Convolve and a window of 20.
+The maximum value in this array is identified as the Noise Factor.
+if the noise factor is less than 0.057(assumed to be correct), the hann window is multiplied by the noise basis
+and then inverted and returned, and the cleanup function returns early, saving additional computation 
+on a window of time which only contains noise.
+
+Six, an array the size of the entropy array, containing the respective minimum values for each
+element selected from either the boxcar or hann time comparisons is produced.
+The respective-maximums and respective-minimums arrays are each independently normalized to 0,1 by subtracting the minimum and dividing by the peak to peak difference.
+The entropy norm is then produced by adding the respective maximum and minimum arrays together.
+The entropy norm then has its minimum subtracted from it and is normalized by multiplying by the peak to peak difference.
+
+Seven, The Absolute_Standard_Deviation of the entropy norm is then determined and divided by two.
+The elements above or equal to this value are threshholded to 1, those below it to 0.
+
+Eight A second threshold value using the Threshhold function is determined, but as input to this 
+the hann magnitude array values greater than or equal to the boxcar threshold are used.
+The second threshold is divided by two.
+
+Nine, a masking by element array is then produced for the hann magnitude 2d array:
+for each element, the mask consists of either 0 if the value is less than the second threshold,
+or 1 if the value is greater than the second threshold.
+
+Ten, The columns of the mask are then masked by the product of the seventh step, ie,
+for each element of the thresholded entropy norm, if they are 0, all of the elements in that column
+in the mask are 0, and if the value in that element is 1, None of the elements in that column of the mask are changed.
+
+Eleven, all of the elements of the mask equal to zero are set to equal the noise basis obtained
+from the third step.
+
+Twelve, the mask is smoothed using Nearest_Neighbors_iteration_50.
+
+Thirteen, the mask is normalized to 0,1.
+
+Fourteen, the hann short term fourier representation is multiplied by the mask, inverted using the inverse short
+term fourier transform, and returned.
+
+
