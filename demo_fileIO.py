@@ -91,41 +91,12 @@ def entropy(data: numpy.ndarray):
     a = numpy.sort(data)
     scaled = numpy.interp(a, (a[0], a[-1]), (-6, +6))
     z = numpy.corrcoef(scaled, logit)
-    #inline the 
     completeness = z[0, 1]
     sigma = 1 - completeness
     return sigma
 
 
 
-'''
-#faster- but requires import numba
-@numba.jit(numba.float64[:,:](numba.float64[:,:]),cache=True)
-def numba_adjacent_filter(data: numpy.ndarray):
-   normal = data.copy()
-   transposed = data.copy()
-   transposed = transposed.T
-   transposed_raveled = numpy.ravel(transposed)
-   normal_raveled = numpy.ravel(normal)
-   #[1:] = 1,2,3,4,5...16000
-   #numpy.roll(transposed_raveled, 1)[1:] = 0 ,1,2,3,4,5...15999
-   #numpy.roll(transposed_raveled, -1)[1:] = 2,3,4,5,6....0
-
-
-   A = transposed_raveled[1:-1] + transposed_raveled[0:-2] + transposed_raveled[2:]
-   transposed_raveled[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) /3
-   transposed_raveled[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2)/3
-   transposed_raveled[1:-1] = A /3
-   transposed = transposed.T
-
-
-   A = normal_raveled[1:-1] + normal_raveled[0:-2] + normal_raveled[2:]
-   normal_raveled[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) /3
-   normal_raveled[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2)/3
-   normal_raveled[1:-1] = A/3
-   return (transposed + normal )/2
-
-'''
     
 def runningMeanFast(x, N):
     return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
@@ -201,9 +172,12 @@ def denoise(data: numpy.ndarray):
     
     trend = moving_average(maxent,20)
     factor = numpy.max(trend)
-    if factor < 0.057: #unknown the exact most precise, correct option.
-    #Lowest is 0.56, but this has a small chance of passing unwanted noise.
-    #highest with this entropy calculation mode is about 0.67. So somewhere between there, for fine tuning.
+    if factor < 0.05775: #unknown the exact most precise, correct option. 
+    #this step does a "false alert" for a frame which is either containing some signal or no signal.
+    #generally, anything which is above 0.067 is pretty much guaranteed to contain signal. Anything below 0.55 is guaranteed to be noise.
+    #based on my calculations, 0.56 passes 10% of noise, 0.057 passes 1%. But these settings also pass 100% of signal.
+    #0.058 begins to miss a few of the hardest to read voice segments, normally illegible.
+
       stft_r = stft_r * r
       processed = istft(stft_r,window=hann)
       return processed
@@ -218,10 +192,12 @@ def denoise(data: numpy.ndarray):
     t1 = atd(trend)/2 #unclear where to set this. too aggressive and it misses parts of syllables.
     trend[trend<t1] = 0
     trend[trend>0] = 1
-    t = threshhold(stft_vr[stft_vr>=t])   #obtain the halfway threshold
-    mask_two = numpy.where(stft_vr>=t/2, 1.0,0)
+    t = (threshhold(stft_vr[stft_vr>=t]) - atd(stft_vr[stft_vr>=t]) ) +man(stft_vr)   #obtain the halfway threshold
+    #note: this threshhold is still not perfectly refined, but had to be optimized for a variety of SNR.
+    mask_two = numpy.where(stft_vr>=t, 1.0,0)
 
     mask = mask_two * trend[None,:] #remove regions from the mask that are noise
+    r = r * factor
     mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
     mask = numpyfilter_wrapper_50(mask)
     
