@@ -249,11 +249,7 @@ def denoise(data: numpy.ndarray):
     
     trend = moving_average(maxent,20)
     factor = numpy.max(trend)
-    if factor < 0.05775: #unknown the exact most precise, correct option. 
-    #this step does a "false alert" for a frame which is either containing some signal or no signal.
-    #generally, anything which is above 0.067 is pretty much guaranteed to contain signal. Anything below 0.55 is guaranteed to be noise.
-    #based on my calculations, 0.56 passes 10% of noise, 0.057 passes 1%. But these settings also pass 100% of signal.
-    #0.058 begins to miss a few of the hardest to read voice segments, normally illegible.
+    if factor < 0.0577215664: 
 
       stft_r = stft_r * r
       processed = istft(stft_r,window=hann)
