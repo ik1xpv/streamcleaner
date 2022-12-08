@@ -45,9 +45,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #Feel free to try your own algorithms and optimizations.
 
 #In particular, thresholding is set to provide a safe denoising basis which will catch *most* speech.
-#    mask_two = numpy.where(stft_vr>=t/2, 1.0,0) This value can be changed to  mask_two = numpy.where(stft_vr>=t, 1.0,0) for a more aggressive denoising.
-#    if factor < 0.057
-
+# This can be changed if you use automatic gain correction. try "  t = (threshhold(stft_vr[stft_vr>=t]) " by itself, but it will
+#lose some sensitivity and perhaps miss some fainter signals. For use in communications where you expect to be 20db over, it will be fine.
+#secondly, the entropy gating can be reduced or increased to make it more or less sensitive. The currrent value
+#is considered to give an acceptable 0.05% false positive rate.
+#If you want it to be supremely sensitive, try factor < 0.0565. If you want it to be very robust aginst noise, try 0.058
+#either way you will either lose some sensitivity or gain some additional noise.
 
 
 #My efforts were originally inspired by the noisereduce python library, which works somewhat well but was designed for bird calls.
@@ -82,8 +85,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #and configure the output for the program in that list to your speakers.
 
 #further recommendations:
-#I recommend the use of a notch filter to reduce false positives 
-#and 10db of gain after this script, followed by an expander and a compressor
+#I recommend the use of a notch filter to reduce false positives and carrier signals disrupting the entropy filter.
+#Please put other denoising methods *after* this method.
 
 import os
 import numpy
@@ -91,7 +94,6 @@ import numpy as np
 
 import pyaudio
 from librosa import stft,istft
-import warnings
 
 from time import sleep
 from np_rw_buffer import AudioFramingBuffer
