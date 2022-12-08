@@ -16,7 +16,9 @@ Other contributors provided assistance with developing components for the real t
 As for the core denoising algorithm, which I obsessively, neurotically fettered over and iterated over through a great deal of trial, pain and effort, unemployed, on food stamps, with only a marginal understanding of programming, and certainly no strong formal background:
 
 If you use this commercially in a for-profit setting, I expect but do not legally obligate you to compensate me.
-I legally exempt anyone using the MIT and GPL license from any liability for the use, modification, or commercialization of this denoising approach, but I will certainly testify before god that you have stolen my time and effort from me.
+I legally exempt anyone using the MIT and GPL license from any liability for the use, modification, or commercialization of this denoising approach, but I will certainly testify before heaven that you have stolen my time and effort from me if you profit from my efforts.
+I am a christian and I believe in doing good by others. Please feel free to copy, implement, integrate,
+utilize, expand upon, and criticize my work, as long as you are not being pedantic and you respect my ignorance.
 
 The algorithm itself seems simple enough, and that's how most things in life are- you try many different things
 until you find what works, and often enough as of not it's just a combination you hadn't considered before.
