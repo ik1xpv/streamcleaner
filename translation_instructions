@@ -18,8 +18,8 @@ Secondly, the square root of the mean of all of the elements of the result of st
 
 Threshhold
 This function seeks to find a robust threshholding measure, but in practice, it works to identify peaks 
-on the basis of being strong outliers.
-The function returns the Median_Absolute_Median_Nonzero_nonNan divided by the Absolute_Standard_Deviation.
+on the basis of being strong outliers.  return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
+The absolute standard deviation plus the median of nonzero, nonnan elements is returned.
 
 Cleanup also relies on a number of helper functions:
 
