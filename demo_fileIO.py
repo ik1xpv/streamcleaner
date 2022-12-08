@@ -27,6 +27,17 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 '''
 
+#How to use this file:
+#step one: using https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Windows-x86_64.exe
+#install python.
+#step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
+#within that prompt, give the following instructions:
+#conda install pip numpy scipy
+#pip install librosa tk dearpygui np-rw-buffer
+#if all of these steps successfully complete, you're ready to go, otherwise fix things.
+#run it with python demo_fileIO.py
+
+
 
 import os
 import numpy
@@ -67,9 +78,6 @@ def man(arr):
 def atd(arr):
     x = numpy.square(abs(arr - man(arr)))
     return numpy.sqrt(numpy.nanmean(x))
-
-def aSNR(arr):
-  return man(arr)/atd(arr)
 
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
