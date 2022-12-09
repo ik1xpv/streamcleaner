@@ -265,7 +265,7 @@ def denoise(data: numpy.ndarray):
 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
     residue = man(stft_vr)  
-    if factor < sensitivity_constant:  #Renyi's parking constant m 
+    if factor < 0.0747597920253411435178730:  #Renyi's parking constant m 
       stft_r = stft_r * residue #return early, and terminate the noise
       processed = istft(stft_r,window=hann)
       return processed 
