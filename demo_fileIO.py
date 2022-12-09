@@ -243,7 +243,7 @@ def denoise(data: numpy.ndarray):
     #0.0747597920253411435178730 #maximum sensitivity  at this constant. this is the parking constant.
     #0.0834626841674073186814297  maximum denoise at this constant. This is the AGM.
     # set the constant somewhere between the two to fine-tune the noise sensitivity.
-    sensitivity_constant = 0.0834626841674073186814297
+    sensitivity_constant = (0.0834626841674073186814297 + 0.0747597920253411435178730)/2
 
 
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
