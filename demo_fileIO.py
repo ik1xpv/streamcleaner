@@ -236,8 +236,15 @@ def numpyentropycheck(data: numpy.ndarray):
 
 #here is an experimental new denoising algorithm. 
 #it may be less sensitive than the previous version, but it is computationally competitive,
-#and does more. It may be more robust.
+#and does more. It may be more robust. It may be more statistically valid.
+
 def denoise(data: numpy.ndarray):
+    #0.0747597920253411435178730 #maximum sensitivity  at this constant. this is the parking constant.
+    #0.0834626841674073186814297  maximum denoise at this constant. This is the AGM.
+    # set the constant somewhere between the two to fine-tune the noise sensitivity.
+    sensitivity_constant = 0.0834626841674073186814297
+
+
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
 
     stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
@@ -250,21 +257,20 @@ def denoise(data: numpy.ndarray):
     o = numpy.pad(entropy, entropy.size//2, mode='median')
     entropy = moving_average(o,14)[entropy.size//2: -entropy.size//2]
     factor = numpy.sum(entropy)/entropy.size
+    floor = threshhold(stft_vr)  #use the floor from the boxcar
 
     stft_r = stft(data,n_fft=512,window=hann) #get complex representation
     stft_vr =  numpy.abs(stft_r) #returns the same as other methods
+
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
     residue = man(stft_vr)  
-    if factor < 0.0747597920253411435178730:  #Renyi's parking constant m 
-    #this number may be robust enough to trust.
+    if factor < sensitivity_constant:  #Renyi's parking constant m 
       stft_r = stft_r * residue #return early, and terminate the noise
       processed = istft(stft_r,window=hann)
-      return processed
+      return processed 
 
-    floor = threshhold(stft_vr)  
 
-    entropy_threshhold = 0.0834626841674073186814297 #AGM
-    #this number may need to be reduced.
+    entropy_threshhold = sensitivity_constant 
 
     entropy[entropy<entropy_threshhold] = 0
     entropy[entropy>0] = 1
