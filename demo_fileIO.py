@@ -33,7 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
 #conda install pip numpy scipy
-#pip install librosa tk dearpygui np-rw-buffer
+#pip install librosa tk dearpygui np-rw-buffer numba
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
 #run it with python demo_fileIO.py
 
@@ -138,7 +138,7 @@ def numpyfilter_wrapper_50(data: numpy.ndarray):
   return d
 
 
-def denoise(data: numpy.ndarray):
+def denoise_old(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
 
     stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
@@ -214,6 +214,77 @@ def denoise(data: numpy.ndarray):
     stft_r = stft_r * mask
     processed = istft(stft_r,window=hann)
     return processed
+
+
+import numba
+@numba.jit()
+def entropy_numba(data: numpy.ndarray):
+    a = numpy.sort(data)
+    scaled = numpy.interp(a, (a[0], a[-1]), (-6, +6))
+    z = numpy.corrcoef(scaled, logit)
+    completeness = z[0, 1]
+    sigma = 1 - completeness
+    return sigma
+
+
+def numpyentropycheck(data: numpy.ndarray):
+  d = data.copy()
+  raveled = numpy.ravel(d)
+  windows =  numpy.lib.stride_tricks.sliding_window_view(raveled, window_shape = 32)
+  raveled[0:windows.shape[0]] = numpy.apply_along_axis(func1d = entropy_numba,axis=1,arr=windows)
+  return d  
+
+#here is an experimental new denoising algorithm. 
+#it may be less sensitive than the previous version, but it is computationally competitive,
+#and does more. It may be more robust.
+def denoise(data: numpy.ndarray):
+    data= numpy.asarray(data,dtype=float) #correct byte order of array   
+
+    stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
+    stft_vr =  numpy.abs(stft_r) #returns the same as other methods
+    stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
+    window = stft_vr[0:32,:]
+    window = numpy.pad(window,((0,0),(32,32)),mode="symmetric")
+    e = numpyentropycheck(window.T).T[:,32:-32]
+    entropy = numpy.apply_along_axis(func1d=numpy.max,axis=0,arr=e)
+    o = numpy.pad(entropy, entropy.size//2, mode='median')
+    entropy = moving_average(o,14)[entropy.size//2: -entropy.size//2]
+    factor = numpy.sum(entropy)/entropy.size
+
+    stft_r = stft(data,n_fft=512,window=hann) #get complex representation
+    stft_vr =  numpy.abs(stft_r) #returns the same as other methods
+    stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
+    residue = man(stft_vr)  
+    if factor < 0.0747597920253411435178730:  #Renyi's parking constant m 
+    #this number may be robust enough to trust.
+      stft_r = stft_r * residue #return early, and terminate the noise
+      processed = istft(stft_r,window=hann)
+      return processed
+
+    floor = threshhold(stft_vr)  
+
+    entropy_threshhold = 0.0834626841674073186814297 #AGM
+    #this number may need to be reduced.
+
+    entropy[entropy<entropy_threshhold] = 0
+    entropy[entropy>0] = 1
+
+    threshold = (threshhold(stft_vr[stft_vr>=floor]) - atd(stft_vr[stft_vr>=floor]))
+    mask_two = numpy.where(stft_vr>=threshold, 1.0,0)
+
+
+    mask = mask_two * entropy[None,:] #remove regions from the mask that are noise
+    residue = residue * factor
+    mask[mask==0] = residue 
+    mask = numpyfilter_wrapper_50(mask)
+    
+    mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
+
+    stft_r = stft_r * mask
+    processed = istft(stft_r,window=hann)
+    return processed
+
+
 
 def padarray(A, size):
     t = size - len(A)
