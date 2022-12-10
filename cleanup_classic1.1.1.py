@@ -302,7 +302,6 @@ def numpyentropycheck(data: numpy.ndarray):
 #it may be less sensitive than the previous version, but it is computationally competitive,
 #and does more. It may be more robust. It may be more statistically valid.
 
-def denoise(data: numpy.ndarray):
     
    #constants to consider
    #0.0834626841674073186814297  AGM
