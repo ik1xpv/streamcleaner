@@ -90,7 +90,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 import os
 import numba
 import numpy
-import numpy as np
 
 import pyaudio
 from librosa import stft,istft
@@ -98,14 +97,6 @@ from librosa import stft,istft
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
 
-
-def fast_hamming(M, sym=True):
-    a = [0.5, 0.5]
-    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
-    w = numpy.zeros(M)
-    for k in range(len(a)):
-        w += a[k] * numpy.cos(k * fac)
-    return w
 
 #@numba.jit()
 #def boxcar(M, sym=True):
@@ -139,17 +130,8 @@ def atd(arr):
     x = numpy.square(numpy.abs(arr - man(arr)))
     return numpy.sqrt(numpy.nanmean(x))
 
-@numba.jit()
-def atd1(arr):
-    x = numpy.square(numpy.abs(arr - man(arr)))
-    return numpy.sqrt(numpy.nanmean(x))
 
 @numba.jit()
-def threshhold(arr):
-  return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
-
-
-
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
 
@@ -164,22 +146,14 @@ def corrected_logit(size):
 
 #precalculate the logistic function for our entropy calculations.
 #save some cycles with redundancy.
-#since we only calculate entropy over a fixed window, we can store our logit.
 logit = corrected_logit(32)
-
-def entropy(data: numpy.ndarray):
-    a = numpy.sort(data)
-    scaled = numpy.interp(a, (a[0], a[-1]), (-6, +6))
-    z = numpy.corrcoef(scaled, logit)
-    completeness = z[0, 1]
-    sigma = 1 - completeness
-    return sigma
-
-def moving_average(x, w):
-    return numpy.convolve(x, numpy.ones(w), 'same') / w
 
 def runningMeanFast(x, N):
     return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
+
+
+def moving_average(x, w):
+    return numpy.convolve(x, numpy.ones(w), 'same') / w
 
 #depending on presence of openblas, as fast as numba.  
 def numpy_convolve_filter(data: numpy.ndarray):
@@ -210,80 +184,6 @@ def numpyfilter_wrapper_50(data: numpy.ndarray):
   return d
 
 
-def denoise_old(data: numpy.ndarray):
-    data= numpy.asarray(data,dtype=float) #correct byte order of array   
-
-    stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
-    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
-    Y = stft_vr[~numpy.isnan(stft_vr)]
-    max = numpy.where(numpy.isinf(Y),0,Y).argmax()
-    max = Y[max]
-    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
-    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
-    stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr)
-    ent1 = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
-    ent1 = ent1 - numpy.min(ent1)
-
-    t = threshhold(stft_vr)     
-    mask_one = numpy.where(stft_vr>=t, 1,0)
-    stft_demo = numpy.where(mask_one == 0, stft_vr,0)
-    stft_d = stft_demo.flatten()
-    stft_d = stft_d[stft_d>0]
-    r = man(stft_d) #obtain a noise background basis
-    
-    stft_r = stft(data,n_fft=512,window=hann) #get complex representation
-    
-    stft_vr = numpy.square(stft_r.real) + numpy.square(stft_r.imag) #obtain absolute**2
-    Y = stft_vr[~numpy.isnan(stft_vr)]
-    max = numpy.where(numpy.isinf(Y),-numpy.Inf,Y).argmax()
-    max = Y[max]
-    stft_vr = numpy.nan_to_num(stft_vr, copy=True, nan=0.0, posinf=max, neginf=0.0)#correct irrationalities
-    stft_vr = numpy.sqrt(stft_vr) #stft_vr >= 0 
-    stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
-   
-    ent = numpy.apply_along_axis(func1d=entropy,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff?
-    ent = ent - numpy.min(ent)
-    ent  = moving_average(ent,14)
-    ent1  = moving_average(ent1,14)
-    #seems to be a reasonable compromise
-    minent = numpy.minimum(ent,ent1)
-    minent=(minent-numpy.nanmin(minent))/numpy.ptp(minent)#correct basis
-    maxent = numpy.maximum(ent,ent1)
-    
-    trend = moving_average(maxent,20)
-    factor = numpy.max(trend)
-    if factor < 0.0577215664: 
-
-      stft_r = stft_r * r
-      processed = istft(stft_r,window=hann)
-      return processed
-      #no point wasting cycles smoothing information which isn't there!
-
-    maxent=(maxent-numpy.nanmin(maxent))/numpy.ptp(maxent)#correct basis 
-
-    ent = (maxent+minent)
-    ent = ent - numpy.min(ent)
-    trend=(ent-numpy.nanmin(ent))/numpy.ptp(ent)#correct basis 
-
-    t1 = atd(trend)/2 #unclear where to set this. too aggressive and it misses parts of syllables.
-    trend[trend<t1] = 0
-    trend[trend>0] = 1
-    t = (threshhold(stft_vr[stft_vr>=t]) - atd(stft_vr[stft_vr>=t]) ) +man(stft_vr)   #obtain the halfway threshold
-    #note: this threshhold is still not perfectly refined, but had to be optimized for a variety of SNR.
-    mask_two = numpy.where(stft_vr>=t, 1.0,0)
-
-    mask = mask_two * trend[None,:] #remove regions from the mask that are noise
-    r = r * factor
-    mask[mask==0] = r #reduce warbling, you could also try r/2 or r/10 or something like that, its not as important
-    mask = numpyfilter_wrapper_50(mask)
-    
-    mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
-
-    stft_r = stft_r * mask
-    processed = istft(stft_r,window=hann)
-    return processed
-
-
 @numba.jit()
 def entropy_numba(data: numpy.ndarray):
     a = numpy.sort(data)
@@ -293,12 +193,6 @@ def entropy_numba(data: numpy.ndarray):
     sigma = 1 - completeness
     return sigma
 
-def numpyentropycheck(data: numpy.ndarray):
-  d = data.copy()
-  raveled = numpy.ravel(d)
-  windows =  numpy.lib.stride_tricks.sliding_window_view(raveled, window_shape = 32)
-  raveled[0:windows.shape[0]] = numpy.apply_along_axis(func1d = entropy_numba,axis=1,arr=windows)
-  return d  
 
 @numba.jit(cache=True)
 def runs(data: numpy.ndarray,size):
@@ -329,20 +223,17 @@ def runs(data: numpy.ndarray,size):
         if count < size:
           output[-count:] = 0
     return output
-   
-    
+
+
 def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
+    lettuce_euler_macaroni = 0.0577215664901532860606512
     stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vr =  numpy.abs(stft_r) #returns the same as other methods
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
-    window = stft_vr[0:32,:]
-    window = numpy.pad(window,((0,0),(2,2)),mode="symmetric")
-    e = numpyentropycheck(window.T).T[:,2:-2]
-    entropy = numpy.apply_along_axis(func1d=atd1,axis=0,arr=e)
-    o = numpy.pad(entropy, entropy.size//2, mode='median')
+    ent_box = numpy.apply_along_axis(func1d=entropy_numba,axis=0,arr=stft_vr[0:32,:]) #32 is pretty much the speech cutoff
+    ent_box = ent_box - numpy.min(ent_box )
 
-    entropy = moving_average(o,14)[entropy.size//2: -entropy.size//2]
     floor = threshhold(numpy.ravel(stft_vr))  #use the floor from the boxcar
 
     stft_r = stft(data,n_fft=512,window=hann) #get complex representation
@@ -351,11 +242,38 @@ def denoise(data: numpy.ndarray):
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
     residue = man(numpy.ravel(stft_vr)) 
 
-    entropy[entropy<0.078] = 0
+    ent = numpy.apply_along_axis(func1d=entropy_numba,axis=0,arr=stft_vr[0:32,:]) 
+
+    o = numpy.pad(ent_box , ent_box.size//2, mode='median')
+    ent_box = moving_average(o,14)[ent_box.size//2: -ent_box.size//2]
+    o = numpy.pad(ent , ent.size//2, mode='median')
+    ent = moving_average(o,14)[ent.size//2: -ent.size//2]
+    ent  = moving_average(ent ,14)
+
+
+    minent = numpy.minimum(ent,ent_box)
+    maxent = numpy.maximum(ent,ent_box)
+    factor = numpy.max(maxent)
+
+
+    trend = moving_average(maxent,20)
+    factor = numpy.max(trend)
+
+    if factor < lettuce_euler_macaroni: #sometimes the old ways are the best ways
+
+      stft_r = stft_r * residue
+      processed = istft(stft_r,window=hann)
+      return processed
+      #no point wasting cycles smoothing information which isn't there!
+
+
+    entropy = (maxent+minent)/2
+    entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
 
-    entropy = runs(entropy, 6) #remove fragments
+    entropy = runs(entropy, 11) #but we can always learn new tricks
     nbins = numpy.sum(entropy)
+
     #14 = ~37ms. For a reliable speech squelch which ignores ionosound chirps, set to ~80-100 bins
     #factor is an unknown, as the method for calculating it is not fully reliable.
     if nbins < 14:
@@ -380,6 +298,7 @@ def denoise(data: numpy.ndarray):
 
 
 
+
 def padarray(A, size):
     t = size - len(A)
     return numpy.pad(A, pad_width=(0, t), mode='constant',constant_values=numpy.std(A))
@@ -389,6 +308,7 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
+import time
 def process_data(data: numpy.ndarray):
     print("processing ", data.size / rate, " seconds long file at ", rate, " rate.")
     start = time.time()
@@ -666,22 +586,20 @@ class StreamSampler(object):
 if __name__ == "__main__":
     SS = StreamSampler(buffer_delay=0)
     SS.listen()
-
-
-
     def close():
         dpg.destroy_context()
         SS.stop()
         quit()
 
 
-    dpg.create_context()
+    dpg.create_context()   
+
     dpg.create_viewport(title= 'Streamclean', height=100, width=400)
     dpg.setup_dearpygui()
     dpg.configure_app(auto_device=True)
 
     dpg.show_viewport()
+    dpg.start_dearpygui()
     while dpg.is_dearpygui_running():
         dpg.render_dearpygui_frame()
     close()  # clean up the program runtime when the user closes the window
-   
