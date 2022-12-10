@@ -319,6 +319,16 @@ def denoise(data: numpy.ndarray):
     entropy = numpy.apply_along_axis(func1d=numpy.max,axis=0,arr=e)
     o = numpy.pad(entropy, entropy.size//2, mode='median')
     entropy = moving_average(o,14)[entropy.size//2: -entropy.size//2]
+    #257 * 376
+    #127.6595744681 1/376th(1 time bin) = 127 samples
+    #48.0 = 1ms = 48 samples
+    #1 bin = 2.64ms
+
+    #14 samples = 37ms
+    #coincidentally, 37ms is also the time required to overcome the interference effect
+    #and is the frame size used for DEMUCS
+    #it is a suitable compromise convolutional window size between oversmoothing and undersmoothing.
+    
     factor = numpy.sum(entropy)/entropy.size
     floor = threshhold(stft_vr)  #use the floor from the boxcar
 
