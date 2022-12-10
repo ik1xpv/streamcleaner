@@ -146,8 +146,7 @@ def atd(arr):
     x = numpy.square(abs(arr - man(arr)))
     return numpy.sqrt(numpy.nanmean(x))
 
-def aSNR(arr):
-  return man(arr)/atd(arr)
+
 
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
