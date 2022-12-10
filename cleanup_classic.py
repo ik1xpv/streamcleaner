@@ -259,9 +259,9 @@ def denoise(data: numpy.ndarray):
 
 
     mask = mask_two * entropy[None,:] #remove regions from the mask that are noise
-    mask[mask==0] = residue 
+
     mask = numpyfilter_wrapper_50(mask)
-    
+    mask[mask==0] = residue 
     mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
 
     stft_r = stft_r * mask
