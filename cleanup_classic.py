@@ -209,7 +209,11 @@ def denoise(data: numpy.ndarray):
     stft_vr =  numpy.abs(stft_r) #returns the same as other methods
 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
-    residue = man(numpy.ravel(stft_vr)) 
+    mask_one = numpy.where(stft_vr>=floor, 1,0)
+    stft_demo = numpy.where(mask_one == 0, stft_vr,0)
+    stft_d = stft_demo.flatten()
+    stft_d = stft_d[stft_d>0]
+    residue = man(numpy.ravel(stft_d)) #obtain a noise background basis
 
     ent = numpy.apply_along_axis(func1d=entropy_numba,axis=0,arr=stft_vr[0:32,:]) 
 
@@ -249,7 +253,8 @@ def denoise(data: numpy.ndarray):
       processed = istft(stft_r,window=hann)
       return processed 
 
-    threshold = (threshhold(numpy.ravel(stft_vr[stft_vr>=floor])) - atd(numpy.ravel(stft_vr[stft_vr>=floor])))
+    threshold = threshhold(numpy.ravel(stft_vr[stft_vr>=floor])) - man(numpy.ravel(stft_vr[stft_vr>=floor])) #we return to being uncertain about this
+    #but it does seem better now
     mask_two = numpy.where(stft_vr>=threshold, 1.0,0)
 
 
