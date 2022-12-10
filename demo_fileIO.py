@@ -1,5 +1,5 @@
 '''
-Demo v1.1.5
+Demo v1.1.6
 Copyright 2022 Oscar Steila, Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
@@ -146,37 +146,6 @@ def entropy_numba(data: numpy.ndarray):
     return sigma
 
 
-@numba.jit(cache=True)
-def runs(data: numpy.ndarray,size):
-    output = data.copy()
-    index = 0
-    count = 0
-    run = False
-    for each in range(data.size):
-        if data[each] == 1:
-          if run == False:
-            run = True
-            count = 1
-            index = each
-          else:
-            if run == True:
-              count += 1
-        else:
-          if run == True:
-            if count< size:
-            #erase the run
-              output[index:each-1] = 0
-              count = 0
-            else:
-              count = 0
-              run = False
-    if run == True:
-      #terminated during a run. Is it large enough?
-        if count < size:
-          output[-count:] = 0
-    return output
-
-
 def denoise(data: numpy.ndarray):
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
     lettuce_euler_macaroni = 0.0577215664901532860606512
@@ -223,7 +192,6 @@ def denoise(data: numpy.ndarray):
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
 
-    entropy = runs(entropy, 11) #but we can always learn new tricks
     nbins = numpy.sum(entropy)
 
     #14 = ~37ms. For a reliable speech squelch which ignores ionosound chirps, set to ~80-100 bins
