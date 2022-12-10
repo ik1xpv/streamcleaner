@@ -88,13 +88,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #Please put other denoising methods *after* this method.
 
 import os
+import numba
 import numpy
 import numpy as np
 
 import pyaudio
 from librosa import stft,istft
 
-from time import sleep
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
 
@@ -280,7 +280,7 @@ def denoise_old(data: numpy.ndarray):
     processed = istft(stft_r,window=hann)
     return processed
 
-import numba
+
 @numba.jit()
 def entropy_numba(data: numpy.ndarray):
     a = numpy.sort(data)
@@ -290,58 +290,26 @@ def entropy_numba(data: numpy.ndarray):
     sigma = 1 - completeness
     return sigma
 
-
 def numpyentropycheck(data: numpy.ndarray):
   d = data.copy()
   raveled = numpy.ravel(d)
   windows =  numpy.lib.stride_tricks.sliding_window_view(raveled, window_shape = 32)
   raveled[0:windows.shape[0]] = numpy.apply_along_axis(func1d = entropy_numba,axis=1,arr=windows)
   return d  
-
-#here is an experimental new denoising algorithm. 
-#it may be less sensitive than the previous version, but it is computationally competitive,
-#and does more. It may be more robust. It may be more statistically valid.
-
-    
-   #constants to consider
-   #0.0834626841674073186814297  AGM
-   # 0.828 700 120 129 003 061 896 869 	#area of a sinc peak
-   #0.822 825 249 678 847 032 995 328 	 #seirpinski constant S
-   #0.794 328 234 724 281 502 065 918 ... 	
-   #0.774 110 217 793 039 338 108 461 ... 	 AGM1,γ) 
-   #0.764 223 653 589 220 662 990 698 ••• 	density of sum of two squares
-   #0.0747597920253411435178730 # this is the parking constant.
-   #0.739 085 133 215 160 641 655 312 ••• #dottie number
-
-    # Embree–Trefethen constant is consistent with the value we get for pure noise - 0.0702
-
-    #257 * 376
-    #127.6595744681 1/376th(1 time bin) = 127 samples
-    #48.0 = 1ms = 48 samples
-    #1 bin = 2.64ms
-
-    #14 samples = 37ms
-    #coincidentally, 37ms is also the time required to overcome the interference effect
-    #and is the frame size used for DEMUCS
-    #it is a suitable compromise convolutional window size between oversmoothing and undersmoothing.
-    
+   
 def denoise(data: numpy.ndarray):
-
-
-
-
+    
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
-
     stft_r = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vr =  numpy.abs(stft_r) #returns the same as other methods
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
     window = stft_vr[0:32,:]
-    window = numpy.pad(window,((0,0),(32,32)),mode="symmetric")
-    e = numpyentropycheck(window.T).T[:,32:-32]
+    window = numpy.pad(window,((0,0),(2,2)),mode="symmetric")
+    e = numpyentropycheck(window.T).T[:,2:-2]
     entropy = numpy.apply_along_axis(func1d=numpy.max,axis=0,arr=e)
     o = numpy.pad(entropy, entropy.size//2, mode='median')
     entropy = moving_average(o,14)[entropy.size//2: -entropy.size//2]
-    factor = numpy.sum(entropy)/entropy.size
+    factor = numpy.max(entropy)/numpy.average(entropy)
     floor = threshhold(stft_vr)  #use the floor from the boxcar
 
     stft_r = stft(data,n_fft=512,window=hann) #get complex representation
@@ -349,16 +317,16 @@ def denoise(data: numpy.ndarray):
 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
     residue = man(stft_vr)   
-    if factor < 0.073733830336929:   #grossman constant
+
+    entropy[entropy<0.0841470984807] = 0
+    entropy[entropy>0] = 1
+    nbins = numpy.sum(entropy)
+    #14 = ~37ms. For a reliable speech squelch which ignores ionosound chirps, set to ~80-100 bins
+    #factor is an unknown, as the method for calculating it is not fully reliable.
+    if nbins < 14 or factor < 1.50:
       stft_r = stft_r * residue #return early, and terminate the noise
       processed = istft(stft_r,window=hann)
       return processed 
-
-
-    entropy_threshhold = 0.0786750052461787 #power of ones nested
-
-    entropy[entropy<entropy_threshhold] = 0
-    entropy[entropy>0] = 1
 
     threshold = (threshhold(stft_vr[stft_vr>=floor]) - atd(stft_vr[stft_vr>=floor]))
     mask_two = numpy.where(stft_vr>=threshold, 1.0,0)
@@ -672,6 +640,4 @@ if __name__ == "__main__":
     while dpg.is_dearpygui_running():
         dpg.render_dearpygui_frame()
     close()  # clean up the program runtime when the user closes the window
-    while dpg.is_dearpygui_running():
-        dpg.render_dearpygui_frame()
-    close()  # clean up the program runtime when the user closes the window
+   
