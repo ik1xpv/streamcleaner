@@ -35,7 +35,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 #12/5/2022 : For best results, i recommend combining this with dynamic expansion and compression.
-#12/7/2022: improved entropy function for performance, made it more robust against noise.
 
 #This experiment is intended to explore improvements to common threshholding and denoising methods in a domain
 #which is readily accessible for experimentation, namely simple scripting without any complex languages or compilers.
@@ -45,20 +44,20 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #Feel free to try your own algorithms and optimizations.
 
 #In particular, thresholding is set to provide a safe denoising basis which will catch *most* speech.
-# This can be changed if you use automatic gain correction. try "  t = (threshhold(stft_vr[stft_vr>=t]) " by itself, but it will
-#lose some sensitivity and perhaps miss some fainter signals. For use in communications where you expect to be 20db over, it will be fine.
-#secondly, the entropy gating can be reduced or increased to make it more or less sensitive. The currrent value
-#is considered to give an acceptable 0.05% false positive rate.
-#If you want it to be supremely sensitive, try factor < 0.0565. If you want it to be very robust aginst noise, try 0.058
-#either way you will either lose some sensitivity or gain some additional noise.
-
+#entropy and constants are used to provide a statistically robust(but perhaps inaccurate) noise measure.
+#these are calculated over a window of 0~2900hz, which considers the strongest voice components. 
 
 #My efforts were originally inspired by the noisereduce python library, which works somewhat well but was designed for bird calls.
-#This  algorithm assumes that the signal is above the noise floor, attempts to estimate the noise floor, and then
+#noisereduce assumes that the signal is above the noise floor, attempts to estimate the noise floor, and then
 #calculates a threshold high enough to identify the voice formant waveform ridges, which is then softened to form
-#a "contour" around the signal. It also works well on CW and some data modes, but is only intended for listening.
+#a "contour" around the signal. 
+
+#the cleanup algorithm assumes first that there is a fundemental floor below the noise and that more robust thresholding can be used
+#to find signal peaks. It also uses a different approach to softening the mask.  Cleanup also works well on CW and some data modes, 
+#but is only intended for listening-beware of results data wise.
 #Science has concluded the harsher the noise, the more it stresses the listener. It can be harmful to health.
 #Therefore the use of a denoising plugin which is effective is beneficial, and improves intelligability. 
+#Cleanup does not yet attempt to recover signal.
 
 
 #How to use this file:
