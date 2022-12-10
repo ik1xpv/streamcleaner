@@ -303,10 +303,25 @@ def numpyentropycheck(data: numpy.ndarray):
 #and does more. It may be more robust. It may be more statistically valid.
 
 def denoise(data: numpy.ndarray):
-    #0.0747597920253411435178730 #maximum sensitivity  at this constant. this is the parking constant.
-    #0.0834626841674073186814297  maximum denoise at this constant. This is the AGM.
+    
+   #constants to consider
+   #0.0834626841674073186814297  AGM
+   # 0.828 700 120 129 003 061 896 869 	#area of a sinc peak
+   #0.822 825 249 678 847 032 995 328 	 #seirpinski constant S
+   #0.794 328 234 724 281 502 065 918 ... 	
+   #0.774 110 217 793 039 338 108 461 ... 	 AGM1,γ) 
+   #0.764 223 653 589 220 662 990 698 ••• 	density of sum of two squares
+   #0.0747597920253411435178730 #maximum sensitivity  at this constant. this is the parking constant.
+   #0.739 085 133 215 160 641 655 312 ••• #dottie number
+   #pure noise is typically 0.073-0.074
+   #We will establish the lowest bound in use as the dotti number
+   #and the intermediary bound as dott + sinc /2  
+   #this is close but slightly more sensitive than previous constants.
+   #acceptable results were found by using agm + parking constant /2 for sensitivity and parking constant for factor.
+   #however, some fainter voice signals are missed this way.
+    
     # set the constant somewhere between the two to fine-tune the noise sensitivity.
-    sensitivity_constant = (0.0834626841674073186814297 + 0.0747597920253411435178730)/2
+    sensitivity_constant = (0.0739085133215160641655312 +0.0828700120129003061896869)/2
 
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
 
@@ -337,7 +352,7 @@ def denoise(data: numpy.ndarray):
 
     stft_vr=(stft_vr-numpy.nanmin(stft_vr))/numpy.ptp(stft_vr) #normalize to 0,1
     residue = man(stft_vr)  
-    if factor < 0.0747597920253411435178730:  #Renyi's parking constant m 
+    if factor < 0.0739085133215160641655312:  
       stft_r = stft_r * residue #return early, and terminate the noise
       processed = istft(stft_r,window=hann)
       return processed 
