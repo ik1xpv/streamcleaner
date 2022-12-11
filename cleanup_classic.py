@@ -204,8 +204,8 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
             mask[0:32,each] =  0
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-        if entropy_unmasked[each] >0.0550346970932031:
-            test = (entropy_unmasked[each]  - 0.0550346970932031) / (0.20608218909223255  - 0.0550346970932031)
+        if entropy_unmasked[each] >0.055012436840346526:
+            test = (entropy_unmasked[each]  - 0.055012436840346526) / (0.20608218909223255  - 0.055012436840346526)
         else:
             test = 0
         test = abs(test - 1) 
@@ -217,6 +217,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         data[data>0] = 1
         mask[0:32,each] = data[:]
     return mask
+
 
 @numba.jit()
 def threshhold(arr):
