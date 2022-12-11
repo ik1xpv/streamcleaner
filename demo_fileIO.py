@@ -1,5 +1,5 @@
 '''
-Demo v1.1.6
+Demo v1.1.7
 Copyright 2022 Oscar Steila, Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
@@ -226,8 +226,8 @@ def denoise(data: numpy.ndarray):
 
     if factor < lettuce_euler_macaroni: #sometimes the old ways are the best ways
 
-      stft_r = stft_vh * residue
-      processed = istft(stft_vh,window=hann)
+      stft_hann = stft_hann * residue
+      processed = istft(stft_hann,window=hann)
       return processed
       #no point wasting cycles smoothing information which isn't there!
 
@@ -242,8 +242,8 @@ def denoise(data: numpy.ndarray):
     #14 = ~37ms. For a reliable speech squelch which ignores ionosound chirps, set to ~80-100 bins
     
     if nbins < 14:
-      stft_vh = stft_vh * residue #return early, and terminate the noise
-      processed = istft(stft_vh,window=hann)
+      stft_hann = stft_hann * residue #return early, and terminate the noise
+      processed = istft(stft_hann,window=hann)
       return processed 
 
     mask=numpy.zeros_like(stft_vh)
