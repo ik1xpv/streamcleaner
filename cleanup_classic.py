@@ -199,25 +199,19 @@ def fast_entropy(data: numpy.ndarray):
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray):
     mask = numpy.zeros_like(stft_)
     for each in numba.prange(stft_.shape[1]):
-        if entropy[each] == 0:
-            continue #skip the calculations for this row, it's masked already
         data = stft_[:,each]
+        if entropy[each] == 0:
+            mask[0:32,each] =  0
+            continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-
-        if entropy_unmasked[each] >0.0577215664901532860606512:
-            test = (entropy_unmasked[each]  - 0.0577215664901532860606512) / (0.20608218909223255  - 0.0577215664901532860606512)
+        if entropy_unmasked[each] >0.0550346970932031:
+            test = (entropy_unmasked[each]  - 0.0550346970932031) / (0.20608218909223255  - 0.0550346970932031)
         else:
             test = 0
-        #0.20608218909223255  #highest
-        #0.0577215664901532860606512 lowest
-        #so, now, we've normalized between zero and 1
-        #we've also attempted to prevent dividing by zero and negative numbers, although that's usually caught.
-        test = abs(test - 1)
+        test = abs(test - 1) 
         thresh1 = (thresh*test)
         if numpy.isnan(thresh1):
             thresh1 = constant #catch errors
-        #now we flip it- we want the noisier signals to have a higher threshold
-        
         constant = (thresh1+constant)/2
         data[data<constant] = 0
         data[data>0] = 1
@@ -240,7 +234,7 @@ def denoise(data: numpy.ndarray):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
-    lettuce_euler_macaroni = 0.0577216 #use the euler/macaroni constant for noise similarity- truncate to 6 points of precision and raise by 1
+    lettuce_euler_macaroni = 0.06 #use the euler/macaroni constant for noise similarity- truncate to 6 points of precision and raise by 1
     #this provides a safe constraint.
 
     boxcar = numpy.asarray([0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5])
@@ -288,20 +282,17 @@ def denoise(data: numpy.ndarray):
     entropy[entropy>0] = 1
     nbins = numpy.sum(entropy)
     #2.6595744681ms per bin
-    if nbins < 21: #most speech and desired signals take longer than this to complete
-      stft_hann = stft_hann * residue #return early, and terminate the noise
-      processed = istft(stft_hann,window=hann)
-      return processed 
 
     mask=numpy.zeros_like(stft_vh)
     thresh = threshhold(numpy.ravel(stft_vh[stft_vh>=floor])) - man(numpy.ravel(stft_vh[stft_vh>=floor]))
 
     mask[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
      
-    mask[mask==0] = residue 
+    
     mask = numpyfilter_wrapper_50(mask)
     mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
-
+    mask[mask==0] = residue 
+    
     stft_hann = stft_hann * mask
     processed = istft(stft_hann,window=hann)
     return processed
