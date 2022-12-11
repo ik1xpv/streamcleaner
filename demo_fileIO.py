@@ -148,6 +148,7 @@ def fast_entropy(data: numpy.ndarray):
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
+
 @numba.jit()
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray):
     mask = numpy.zeros_like(stft_)
@@ -155,19 +156,26 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         if entropy[each] == 0:
             continue #skip the calculations for this row, it's masked already
         data = stft_[:,each]
-        test = (entropy_unmasked[each]  - 0.0577215664901532860606512) / (0.20608218909223255  - 0.0577215664901532860606512)
+        constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
+
+        if entropy_unmasked[each] >0.0577215664901532860606512:
+            test = (entropy_unmasked[each]  - 0.0577215664901532860606512) / (0.20608218909223255  - 0.0577215664901532860606512)
+        else:
+            test = 0
         #0.20608218909223255  #highest
         #0.0577215664901532860606512 lowest
         #so, now, we've normalized between zero and 1
+        #we've also attempted to prevent dividing by zero and negative numbers, although that's usually caught.
         test = abs(test - 1)
         thresh1 = (thresh*test)
+        if numpy.isnan(thresh1):
+            thresh1 = constant #catch errors
         #now we flip it- we want the noisier signals to have a higher threshold
-        constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-        #constant = (constant+(thresh*test)) #crudely 
-        constant = (thresh1+constant)/2 #always take the higher threshold
+        
+        constant = (thresh1+constant)/2
         data[data<constant] = 0
         data[data>0] = 1
-        mask[0:32,each] = data
+        mask[0:32,each] = data[:]
     return mask
 
 @numba.jit()
@@ -196,26 +204,25 @@ def denoise(data: numpy.ndarray):
     stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vb =  numpy.abs(stft_boxcar) #returns the same as other methods
     stft_vb=(stft_vb-numpy.nanmin(stft_vb))/numpy.ptp(stft_vb) #normalize to 0,1
+    floor = threshold(stft_vb.flatten())
+
     stft_vb  = stft_vb[0:32,:] #obtain the desired bins
     stft_vb = numpy.sort(stft_vb,axis=0) #sort the array
     ent_box = fast_entropy(stft_vb)
     ent_box = ent_box - numpy.min(ent_box )
     ent_box = smoothpadded(ent_box)
 
-    floor = threshold(stft_vb.flatten())
 
     stft_hann = stft(data,n_fft=512,window=hann) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
-
     stft_vh =(stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
 
     stft_d = stft_vh[stft_vh<floor]
     stft_d = stft_d[stft_d>0]
-    residue = numpy.nanmedian(numpy.abs(stft_d - numpy.nanmedian(stft_d[numpy.nonzero(stft_d)])))
-    #the same as man(numpy.ravel(stft_d))
+    residue =  man(stft_d)
 
-    stft_vr = stft_vh.copy()
-    stft_vr  = stft_vr[0:32,:] #obtain the desired bins
+
+    stft_vr  = stft_vh[0:32,:].copy() #obtain the desired bins
     stft_vr = numpy.sort(stft_vr,axis=0) #sort the array
     ent_hann = fast_entropy(stft_vr)
     ent_hann = smoothpadded(ent_hann)
@@ -224,30 +231,24 @@ def denoise(data: numpy.ndarray):
     maxent = numpy.maximum(ent_hann,ent_box)
     factor = numpy.max(maxent)
 
-    if factor < lettuce_euler_macaroni: #sometimes the old ways are the best ways
-
+    if factor < lettuce_euler_macaroni: 
       stft_hann = stft_hann * residue
       processed = istft(stft_hann,window=hann)
       return processed
-      #no point wasting cycles smoothing information which isn't there!
-
 
     entropy = (maxent+minent)/2
     entropy_unmasked = entropy.copy()
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
-
     nbins = numpy.sum(entropy)
-
-    #For a reliable speech squelch which ignores ionosound chirps, set to ~80-100 bins
-    
-    if nbins < 21:
+    #2.6595744681ms per bin
+    if nbins < 21: #most speech and desired signals take longer than this to complete
       stft_hann = stft_hann * residue #return early, and terminate the noise
       processed = istft(stft_hann,window=hann)
       return processed 
 
     mask=numpy.zeros_like(stft_vh)
-    thresh = threshhold(numpy.ravel(stft_vh[stft_vh>=floor])) - man(numpy.ravel(stft_vh[stft_vh>=floor])) #we return to being uncertain about this
+    thresh = threshhold(numpy.ravel(stft_vh[stft_vh>=floor])) - man(numpy.ravel(stft_vh[stft_vh>=floor]))
 
     mask[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
      
@@ -258,6 +259,7 @@ def denoise(data: numpy.ndarray):
     stft_hann = stft_hann * mask
     processed = istft(stft_hann,window=hann)
     return processed
+
 
 
 def padarray(A, size):
