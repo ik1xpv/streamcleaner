@@ -290,19 +290,6 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
 
-    nbins = numpy.sum(entropy)
-    
-    if nbins < 21:
-      stft_hann = stft_hann * residue
-      stft_vh = stft_vh * residue #no point wasting cycles
-      processed = istft(stft_hann,window=hann)
-      arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh, bytes=False, norm=True) #only the first NROWS
-      arr_color = numpy.flipud(arr_color) #updown freq axis
-      arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
-      dpg.set_value("clean_texture", arr_color) 
-      return processed
-      #no point wasting cycles smoothing information which isn't there!
-
     mask=numpy.zeros_like(stft_vh)
     thresh = threshhold(numpy.ravel(stft_vh[stft_vh>=floor])) - man(numpy.ravel(stft_vh[stft_vh>=floor])) #we return to being uncertain about this
     
