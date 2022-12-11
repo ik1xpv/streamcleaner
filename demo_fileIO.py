@@ -233,8 +233,20 @@ def denoise(data: numpy.ndarray):
     entropy_unmasked = entropy.copy()
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
-
-
+    nbins = numpy.sum(entropy)
+    maxstreak = longestConsecutive(entropy)
+    
+    #ok, so the shortest vowels are still over 100ms long. That's around 37.59 samples. Call it 38.
+    #half of 38 is, go figure, 17.
+    #now we do have an issue- what if a vowel is being pronounced in the middle of transition?
+    #this *could* result in the end or beginning of words being truncated, but with this criteria,
+    #we reasonably establish that there are no regions as long as half a vowel.
+    #if there's really messed up speech(hence small segments) but enough of it(hence 22 bins)
+    #then we can consider the frame to consist of speech
+    if nbins<22 and maxstreak<16:
+      stft_hann = stft_hann  * residue
+      processed = istft(stft_hann ,window=hann)
+      return processed
 
     mask=numpy.zeros_like(stft_vh)
     thresh = threshhold(numpy.ravel(stft_vh[stft_vh>=floor])) - man(numpy.ravel(stft_vh[stft_vh>=floor]))
