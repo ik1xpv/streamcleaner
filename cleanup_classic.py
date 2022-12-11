@@ -260,8 +260,7 @@ def denoise(data: numpy.ndarray):
     stft_d = stft_vh[stft_vh<floor]
     stft_d = stft_d[stft_d>0]
     residue =  man(stft_d)
-
-
+    
     stft_vr  = stft_vh[0:32,:].copy() #obtain the desired bins
     stft_vr = numpy.sort(stft_vr,axis=0) #sort the array
     ent_hann = fast_entropy(stft_vr)
