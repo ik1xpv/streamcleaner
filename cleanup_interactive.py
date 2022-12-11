@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #idea and code and bugs by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup_interactive1.1.7.py
+#cleanup_interactive1.1.8.py
 
 #12/11/2022 : this is no longer an experiment
 
