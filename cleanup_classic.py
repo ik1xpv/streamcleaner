@@ -202,6 +202,8 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         if entropy[each] == 0:
             continue #skip the calculations for this row, it's masked already
         data = stft_[:,each]
+        constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
+
         if entropy_unmasked[each] >0.0577215664901532860606512:
             test = (entropy_unmasked[each]  - 0.0577215664901532860606512) / (0.20608218909223255  - 0.0577215664901532860606512)
         else:
@@ -215,7 +217,6 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         if numpy.isnan(thresh1):
             thresh1 = constant #catch errors
         #now we flip it- we want the noisier signals to have a higher threshold
-        constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
         
         constant = (thresh1+constant)/2
         data[data<constant] = 0
