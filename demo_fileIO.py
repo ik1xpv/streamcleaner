@@ -1,3 +1,4 @@
+#This program will crash if you feed it stereo. Feel free to submit a patch to add stereo handling.
 '''
 Demo v1.1.8
 Copyright 2022 Oscar Steila, Joshuah Rainstar
@@ -206,7 +207,11 @@ def denoise(data: numpy.ndarray):
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
+    #Squelch setting:         #0.0596347362323194074341078499369279376074 #total certainty, no noise copy - 95% of signal (the default)
+    #Signal Recovery setting: #0.0567143290409783872999968 #total certainty, all signal copy - 95% of noise removed
+    #50/50 setting:           #0.0581745326366488973670523249684639688037 #an acceptable tradeoff for most use cases
 
+ 
 
     stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vb =  numpy.abs(stft_boxcar) #returns the same as other methods
@@ -303,24 +308,6 @@ def process_data(data: numpy.ndarray):
 
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-# look for input file.wav
-    Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
-    filename = askopenfilename(filetypes=(('wav files', '*.wav'),), title='Select input file.wav')
-    file_path, file_tail = os.path.split(filename)
-    infile = filename
-    outfile = f"{file_path}/cleanup, {file_tail}"
-    print(infile)
-    print(outfile)
-    rate, data = wavfile.read(infile) # pcm16bit
-    data_max = (2 ** 15 - 1)  # peak  in pcm16bit
-  # peak level in pcm16bit
-    data = data * 1.0 / data_max  # from pcm16bit to float (-1.0, 1.0)
-
-    reduced_noise = process_data(data) *2.0  #  6 db gain
-    # from float (-1.0, 1.0) to pcm16bit
-   # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 # look for input file.wav
     Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
