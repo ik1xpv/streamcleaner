@@ -267,7 +267,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
     stft_vh = (stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
     
-    arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vr, bytes=False, norm=True) #only the first NROWS
+    arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh, bytes=False, norm=True) #only the first NROWS
     arr_color = numpy.flipud(arr_color) #updown freq axis
     arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
     dpg.set_value("dirty_texture", arr_color) 
@@ -326,7 +326,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     if ENTROPY:
         mask = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
     else:
-        mask  = numpy.where(stft_vr>=thresh, 1.0,0)
+        mask  = numpy.where(stft_vh>=thresh, 1.0,0)
       
     mask = numpyfilter_wrapper_50(mask)
     mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
