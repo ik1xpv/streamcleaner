@@ -204,8 +204,8 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
             mask[0:32,each] =  0
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-        if entropy_unmasked[each] >0.055012436840346526:
-            test = (entropy_unmasked[each]  - 0.055012436840346526) / (0.20608218909223255  - 0.055012436840346526)
+        if entropy_unmasked[each] > 0.0550159828227709875:
+            test = (entropy_unmasked[each]  - 0.0550159828227709875) / (0.20608218909223255  - 0.0550159828227709875)
         else:
             test = 0
         test = abs(test - 1) 
@@ -217,6 +217,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         data[data>0] = 1
         mask[0:32,each] = data[:]
     return mask
+
 
 
 @numba.jit()
@@ -252,7 +253,7 @@ def denoise(data: numpy.ndarray):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
-    lettuce_euler_macaroni = 0.06 #use the euler/macaroni constant for noise similarity- truncate to 6 points of precision and raise by 1
+    lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
     #this provides a safe constraint.
  
 
