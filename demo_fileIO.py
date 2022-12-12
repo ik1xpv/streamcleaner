@@ -158,7 +158,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
         if entropy_unmasked[each] > 0.0550159828227709875:
-            test = (entropy_unmasked[each]  - 0.0550159828227709875) / (0.20608218909223255  - 0.0550159828227709875)
+            test = (entropy_unmasked[each]  - 0.0550159828227709875) / (0.20608218909194175  - 0.0550159828227709875)
         else:
             test = 0
         test = abs(test - 1) 
