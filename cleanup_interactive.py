@@ -244,7 +244,11 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
-   
+    #Squelch setting:         #0.0596347362323194074341078499369279376074 #total certainty, no noise copy - 95% of signal (the default)
+    #Signal Recovery setting: #0.0567143290409783872999968 #total certainty, all signal copy - 95% of noise removed
+    #50/50 setting:           #0.0581745326366488973670523249684639688037 #an acceptable tradeoff for most use cases
+
+ 
 
 
     stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
