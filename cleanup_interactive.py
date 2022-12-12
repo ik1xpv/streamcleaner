@@ -1,5 +1,5 @@
 '''
-Demo v1.1.7
+Demo v1.1.9
 Copyright 2022 Oscar Steila, Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
@@ -258,8 +258,6 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
    
-
-
     stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vb =  numpy.abs(stft_boxcar) #returns the same as other methods
     stft_vb=(stft_vb-numpy.nanmin(stft_vb))/numpy.ptp(stft_vb) #normalize to 0,1
@@ -272,9 +270,13 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     ent_box = smoothpadded(ent_box)
 
 
-    stft_hann = stft(data,n_fft=512,window=hann) #get complex representation
+    stft_hann = stft(data,n_fft=512,window=angels) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
     stft_vh = (stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
+    
+    stft_hann_real = stft(data,n_fft=512,window=hann) #get complex representation
+    stft_vr =  numpy.abs(stft_hann_real) #returns the same as other methods
+    stft_vr = (stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
     
     arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vr, bytes=False, norm=True) #only the first NROWS
     arr_color = numpy.flipud(arr_color) #updown freq axis
@@ -299,8 +301,8 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
 
     
     if factor < lettuce_euler_macaroni and ENTROPY == True : #sometimes the old ways are the best ways
-      stft_hann = stft_hann * residue
-      stft_vh = stft_vh * residue #no point wasting cycles
+      stft_hann = stft_hann_real * residue
+      stft_vh = stft_vr * residue #no point wasting cycles
       processed = istft(stft_hann,window=hann)
       arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh, bytes=False, norm=True) #only the first NROWS
       arr_color = numpy.flipud(arr_color) #updown freq axis
@@ -324,7 +326,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     #if there's really messed up speech(hence small segments) but enough of it(hence 22 bins)
     #then we can consider the frame to consist of speech
     if nbins<22 and maxstreak<16 and ENTROPY:
-      stft_hann = stft_hann  * residue
+      stft_hann = stft_hann_real  * residue
       processed = istft(stft_hann ,window=hann)
       return processed
           
@@ -341,8 +343,8 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
     mask[mask==0] = residue
 
-    stft_hann = stft_hann * mask
-    stft_vh = stft_vh * mask
+    stft_hann = stft_hann_real * mask
+    stft_vh = stft_vr * mask
     arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh, bytes=False, norm=True) #only the first NROWS
     arr_color = numpy.flipud(arr_color) #updown freq axis
     arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
