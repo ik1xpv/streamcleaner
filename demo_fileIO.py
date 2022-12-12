@@ -1,5 +1,7 @@
+#note: the program will crash if you feed it stereo audio. Don't do that.
+
 '''
-Demo v1.1.8
+Demo v1.1.9
 Copyright 2022 Oscar Steila, Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
