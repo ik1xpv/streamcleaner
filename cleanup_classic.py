@@ -194,7 +194,6 @@ def fast_entropy(data: numpy.ndarray):
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
-
 @numba.jit()
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray):
     mask = numpy.zeros_like(stft_)
@@ -204,8 +203,8 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
             mask[0:32,each] =  0
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-        if entropy_unmasked[each] > 0.0550159828227709875:
-            test = (entropy_unmasked[each]  - 0.0550159828227709875) / (0.20608218909194175  - 0.0550159828227709875)
+        if entropy_unmasked[each] > 0.06527386521226887:
+            test = (entropy_unmasked[each]  - 0.06527386521226887) / (0.4084818610947982  - 0.06527386521226887)
         else:
             test = 0
         test = abs(test - 1) 
@@ -217,7 +216,6 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         data[data>0] = 1
         mask[0:32,each] = data[:]
     return mask
-
 
 
 @numba.jit()
