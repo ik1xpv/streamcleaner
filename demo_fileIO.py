@@ -320,7 +320,18 @@ if __name__ == '__main__':
 
     reduced_noise = process_data(data) *2.0  #  6 db gain
     # from float (-1.0, 1.0) to pcm16bit
-    numpy.clip(reduced_noise, -1.0, 1.0)   # clip signal float range (1.0,-1-0)
-    reduced_noise = reduced_noise * data_max
-    wavfile.write(outfile, rate, reduced_noise.astype(numpy.int16))
+   # Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+# look for input file.wav
+    Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
+    filename = askopenfilename(filetypes=(('wav files', '*.wav'),), title='Select input file.wav')
+    file_path, file_tail = os.path.split(filename)
+    infile = filename
+    outfile = f"{file_path}/cleanup, {file_tail}"
+    print(infile)
+    print(outfile)
+    rate, data = wavfile.read(infile)
+    reduced_noise = process_data(data)
+
+    wavfile.write(outfile, rate, reduced_noise.astype(numpy.float32))
 
