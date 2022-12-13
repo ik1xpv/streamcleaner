@@ -83,6 +83,8 @@ import cv2
 STFT_DISPLAY_HZ = 4000
 NROWS = int((512 * STFT_DISPLAY_HZ)/48000) # spectrogram height 257 => 24 kHz , 42 => 4 kHz
 NBINS = 32 #=> 3kHz (SSB)
+#note that if you change the number of bins, the program will crash unless you use corrected_logit to regenerate the logit function to the correct size 
+#for use in fast_entropy or replace the inlined array with a call to the function.
 
 #@numba.jit()
 #def boxcar(M, sym=True):
