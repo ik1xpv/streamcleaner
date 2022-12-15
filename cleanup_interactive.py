@@ -230,7 +230,24 @@ boxcar = numpy.asarray([0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
 hann = numpy.asarray([0.00000000e+00,3.77965773e-05,1.51180595e-04,3.40134910e-04,6.04630957e-04,9.44628746e-04,1.36007687e-03,1.85091253e-03,2.41706151e-03,3.05843822e-03,3.77494569e-03,4.56647559e-03,5.43290826e-03,6.37411270e-03,7.38994662e-03,8.48025644e-03,9.64487731e-03,1.08836332e-02,1.21963367e-02,1.35827895e-02,1.50427819e-02,1.65760932e-02,1.81824916e-02,1.98617342e-02,2.16135671e-02,2.34377255e-02,2.53339336e-02,2.73019047e-02,2.93413412e-02,3.14519350e-02,3.36333667e-02,3.58853068e-02,3.82074146e-02,4.05993391e-02,4.30607187e-02,4.55911813e-02,4.81903443e-02,5.08578147e-02,5.35931893e-02,5.63960544e-02,5.92659864e-02,6.22025514e-02,6.52053053e-02,6.82737943e-02,7.14075543e-02,7.46061116e-02,7.78689827e-02,8.11956742e-02,8.45856832e-02,8.80384971e-02,9.15535940e-02,9.51304424e-02,9.87685015e-02,1.02467221e-01,1.06226043e-01,1.10044397e-01,1.13921708e-01,1.17857388e-01,1.21850843e-01,1.25901469e-01,1.30008654e-01,1.34171776e-01,1.38390206e-01,1.42663307e-01,1.46990432e-01,1.51370928e-01,1.55804131e-01,1.60289372e-01,1.64825973e-01,1.69413247e-01,1.74050502e-01,1.78737036e-01,1.83472140e-01,1.88255099e-01,1.93085190e-01,1.97961681e-01,2.02883837e-01,2.07850913e-01,2.12862158e-01,2.17916814e-01,2.23014117e-01,2.28153297e-01,2.33333576e-01,2.38554171e-01,2.43814294e-01,2.49113148e-01,2.54449933e-01,2.59823842e-01,2.65234062e-01,2.70679775e-01,2.76160159e-01,2.81674384e-01,2.87221617e-01,2.92801019e-01,2.98411747e-01,3.04052952e-01,3.09723782e-01,3.15423378e-01,3.21150881e-01,3.26905422e-01,3.32686134e-01,3.38492141e-01,3.44322565e-01,3.50176526e-01,3.56053138e-01,3.61951513e-01,3.67870760e-01,3.73809982e-01,3.79768282e-01,3.85744760e-01,3.91738511e-01,3.97748631e-01,4.03774209e-01,4.09814335e-01,4.15868096e-01,4.21934577e-01,4.28012860e-01,4.34102027e-01,4.40201156e-01,4.46309327e-01,4.52425614e-01,4.58549094e-01,4.64678841e-01,4.70813928e-01,4.76953428e-01,4.83096412e-01,4.89241951e-01,4.95389117e-01,5.01536980e-01,5.07684611e-01,5.13831080e-01,5.19975458e-01,5.26116815e-01,5.32254225e-01,5.38386758e-01,5.44513487e-01,5.50633486e-01,5.56745831e-01,5.62849596e-01,5.68943859e-01,5.75027699e-01,5.81100196e-01,5.87160431e-01,5.93207489e-01,5.99240456e-01,6.05258418e-01,6.11260467e-01,6.17245695e-01,6.23213197e-01,6.29162070e-01,6.35091417e-01,6.41000339e-01,6.46887944e-01,6.52753341e-01,6.58595644e-01,6.64413970e-01,6.70207439e-01,6.75975174e-01,6.81716305e-01,6.87429962e-01,6.93115283e-01,6.98771407e-01,7.04397480e-01,7.09992651e-01,7.15556073e-01,7.21086907e-01,7.26584315e-01,7.32047467e-01,7.37475536e-01,7.42867702e-01,7.48223150e-01,7.53541070e-01,7.58820659e-01,7.64061117e-01,7.69261652e-01,7.74421479e-01,7.79539817e-01,7.84615893e-01,7.89648938e-01,7.94638193e-01,7.99582902e-01,8.04482319e-01,8.09335702e-01,8.14142317e-01,8.18901439e-01,8.23612347e-01,8.28274329e-01,8.32886681e-01,8.37448705e-01,8.41959711e-01,8.46419017e-01,8.50825950e-01,8.55179843e-01,8.59480037e-01,8.63725883e-01,8.67916738e-01,8.72051970e-01,8.76130952e-01,8.80153069e-01,8.84117711e-01,8.88024281e-01,8.91872186e-01,8.95660845e-01,8.99389686e-01,9.03058145e-01,9.06665667e-01,9.10211707e-01,9.13695728e-01,9.17117204e-01,9.20475618e-01,9.23770461e-01,9.27001237e-01,9.30167455e-01,9.33268638e-01,9.36304317e-01,9.39274033e-01,9.42177336e-01,9.45013788e-01,9.47782960e-01,9.50484434e-01,9.53117800e-01,9.55682662e-01,9.58178630e-01,9.60605328e-01,9.62962389e-01,9.65249456e-01,9.67466184e-01,9.69612237e-01,9.71687291e-01,9.73691033e-01,9.75623159e-01,9.77483377e-01,9.79271407e-01,9.80986977e-01,9.82629829e-01,9.84199713e-01,9.85696393e-01,9.87119643e-01,9.88469246e-01,9.89745000e-01,9.90946711e-01,9.92074198e-01,9.93127290e-01,9.94105827e-01,9.95009663e-01,9.95838660e-01,9.96592693e-01,9.97271648e-01,9.97875422e-01,9.98403924e-01,9.98857075e-01,9.99234805e-01,9.99537058e-01,9.99763787e-01,9.99914959e-01,9.99990551e-01,9.99990551e-01,9.99914959e-01,9.99763787e-01,9.99537058e-01,9.99234805e-01,9.98857075e-01,9.98403924e-01,9.97875422e-01,9.97271648e-01,9.96592693e-01,9.95838660e-01,9.95009663e-01,9.94105827e-01,9.93127290e-01,9.92074198e-01,9.90946711e-01,9.89745000e-01,9.88469246e-01,9.87119643e-01,9.85696393e-01,9.84199713e-01,9.82629829e-01,9.80986977e-01,9.79271407e-01,9.77483377e-01,9.75623159e-01,9.73691033e-01,9.71687291e-01,9.69612237e-01,9.67466184e-01,9.65249456e-01,9.62962389e-01,9.60605328e-01,9.58178630e-01,9.55682662e-01,9.53117800e-01,9.50484434e-01,9.47782960e-01,9.45013788e-01,9.42177336e-01,9.39274033e-01,9.36304317e-01,9.33268638e-01,9.30167455e-01,9.27001237e-01,9.23770461e-01,9.20475618e-01,9.17117204e-01,9.13695728e-01,9.10211707e-01,9.06665667e-01,9.03058145e-01,8.99389686e-01,8.95660845e-01,8.91872186e-01,8.88024281e-01,8.84117711e-01,8.80153069e-01,8.76130952e-01,8.72051970e-01,8.67916738e-01,8.63725883e-01,8.59480037e-01,8.55179843e-01,8.50825950e-01,8.46419017e-01,8.41959711e-01,8.37448705e-01,8.32886681e-01,8.28274329e-01,8.23612347e-01,8.18901439e-01,8.14142317e-01,8.09335702e-01,8.04482319e-01,7.99582902e-01,7.94638193e-01,7.89648938e-01,7.84615893e-01,7.79539817e-01,7.74421479e-01,7.69261652e-01,7.64061117e-01,7.58820659e-01,7.53541070e-01,7.48223150e-01,7.42867702e-01,7.37475536e-01,7.32047467e-01,7.26584315e-01,7.21086907e-01,7.15556073e-01,7.09992651e-01,7.04397480e-01,6.98771407e-01,6.93115283e-01,6.87429962e-01,6.81716305e-01,6.75975174e-01,6.70207439e-01,6.64413970e-01,6.58595644e-01,6.52753341e-01,6.46887944e-01,6.41000339e-01,6.35091417e-01,6.29162070e-01,6.23213197e-01,6.17245695e-01,6.11260467e-01,6.05258418e-01,5.99240456e-01,5.93207489e-01,5.87160431e-01,5.81100196e-01,5.75027699e-01,5.68943859e-01,5.62849596e-01,5.56745831e-01,5.50633486e-01,5.44513487e-01,5.38386758e-01,5.32254225e-01,5.26116815e-01,5.19975458e-01,5.13831080e-01,5.07684611e-01,5.01536980e-01,4.95389117e-01,4.89241951e-01,4.83096412e-01,4.76953428e-01,4.70813928e-01,4.64678841e-01,4.58549094e-01,4.52425614e-01,4.46309327e-01,4.40201156e-01,4.34102027e-01,4.28012860e-01,4.21934577e-01,4.15868096e-01,4.09814335e-01,4.03774209e-01,3.97748631e-01,3.91738511e-01,3.85744760e-01,3.79768282e-01,3.73809982e-01,3.67870760e-01,3.61951513e-01,3.56053138e-01,3.50176526e-01,3.44322565e-01,3.38492141e-01,3.32686134e-01,3.26905422e-01,3.21150881e-01,3.15423378e-01,3.09723782e-01,3.04052952e-01,2.98411747e-01,2.92801019e-01,2.87221617e-01,2.81674384e-01,2.76160159e-01,2.70679775e-01,2.65234062e-01,2.59823842e-01,2.54449933e-01,2.49113148e-01,2.43814294e-01,2.38554171e-01,2.33333576e-01,2.28153297e-01,2.23014117e-01,2.17916814e-01,2.12862158e-01,2.07850913e-01,2.02883837e-01,1.97961681e-01,1.93085190e-01,1.88255099e-01,1.83472140e-01,1.78737036e-01,1.74050502e-01,1.69413247e-01,1.64825973e-01,1.60289372e-01,1.55804131e-01,1.51370928e-01,1.46990432e-01,1.42663307e-01,1.38390206e-01,1.34171776e-01,1.30008654e-01,1.25901469e-01,1.21850843e-01,1.17857388e-01,1.13921708e-01,1.10044397e-01,1.06226043e-01,1.02467221e-01,9.87685015e-02,9.51304424e-02,9.15535940e-02,8.80384971e-02,8.45856832e-02,8.11956742e-02,7.78689827e-02,7.46061116e-02,7.14075543e-02,6.82737943e-02,6.52053053e-02,6.22025514e-02,5.92659864e-02,5.63960544e-02,5.35931893e-02,5.08578147e-02,4.81903443e-02,4.55911813e-02,4.30607187e-02,4.05993391e-02,3.82074146e-02,3.58853068e-02,3.36333667e-02,3.14519350e-02,2.93413412e-02,2.73019047e-02,2.53339336e-02,2.34377255e-02,2.16135671e-02,1.98617342e-02,1.81824916e-02,1.65760932e-02,1.50427819e-02,1.35827895e-02,1.21963367e-02,1.08836332e-02,9.64487731e-03,8.48025644e-03,7.38994662e-03,6.37411270e-03,5.43290826e-03,4.56647559e-03,3.77494569e-03,3.05843822e-03,2.41706151e-03,1.85091253e-03,1.36007687e-03,9.44628746e-04,6.04630957e-04,3.40134910e-04,1.51180595e-04,3.77965773e-05,0.00000000e+00])
 #predefining our windows also saves some cycles    
 
-
+def update_gui( stft_in, stft_out, audiowave):
+    #generates the GUI images and waveform plot
+    #return processed audiowave
+    arr_color_d = cm.ScalarMappable(cmap="turbo").to_rgba(stft_in[:-(257-NROWS)], bytes=False, norm=False) #only the first 4k span
+    #arr_color_d = cm.ScalarMappable(cmap="turbo").to_rgba(stft_in[:-(257-NBINS)], bytes=False, norm=True) #only the first NBINS
+    #arr_color_d = cm.ScalarMappable(cmap="turbo").to_rgba(stft_in, bytes=False, norm=True) # all the bins
+    arr_color_d = numpy.flipud(arr_color_d) #updown freq axis
+    arr_color_d = cv2.resize(arr_color_d, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
+    
+    arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_out[:-(257-NROWS)], bytes=False, norm=False) #only the first NROWS
+    arr_color = numpy.flipud(arr_color) #updown freq axis
+    arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
+    
+    dpg.set_value("dirty_texture", arr_color_d) 
+    dpg.set_value("clean_texture", arr_color) 
+    dpg.set_value("plot2", audiowave)
+    return audiowave
+    
 def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
 
     #24000/256 = 93.75 hz per frequency bin.
@@ -248,8 +265,6 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     #Signal Recovery setting: #0.0567143290409783872999968 #total certainty, all signal copy - 95% of noise removed
     #50/50 setting:           #0.0581745326366488973670523249684639688037 #an acceptable tradeoff for most use cases
 
- 
-
 
     stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vb =  numpy.abs(stft_boxcar) #returns the same as other methods
@@ -266,15 +281,9 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     stft_hann = stft(data,n_fft=512,window=hann) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
     stft_vh = (stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
-    arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh[:-(257-NROWS)], bytes=False, norm=True) #only the first 4k span
-    #arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh[:-(257-NBINS)], bytes=False, norm=True) #only the first NBINS
-    #arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh, bytes=False, norm=True) # all the bins
-    arr_color = numpy.flipud(arr_color) #updown freq axis
-    arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
-    dpg.set_value("dirty_texture", arr_color) 
+    stft_in = stft_vh.copy()  
     if DENOISE == False: 
-      dpg.set_value("clean_texture", arr_color)
-      return data
+      return update_gui(stft_in, stft_in, data)
     
     stft_d = stft_vh[stft_vh<floor]
     stft_d = stft_d[stft_d>0]
@@ -294,11 +303,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
       stft_hann = stft_hann * residue
       stft_vh = stft_vh * residue #no point wasting cycles
       processed = istft(stft_hann,window=hann)
-      arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh, bytes=False, norm=True) #only the first NROWS
-      arr_color = numpy.flipud(arr_color) #updown freq axis
-      arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
-      dpg.set_value("clean_texture", arr_color) 
-      return processed
+      return update_gui(stft_in, stft_vh, processed)      
       #no point wasting cycles smoothing information which isn't there!
 
     entropy = (maxent+minent)/2
@@ -315,11 +320,12 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     #we reasonably establish that there are no regions as long as half a vowel.
     #if there's really messed up speech(hence small segments) but enough of it(hence 22 bins)
     #then we can consider the frame to consist of speech
+    
     if nbins<22 and maxstreak<16 and ENTROPY:
       stft_hann = stft_hann  * residue
       processed = istft(stft_hann ,window=hann)
-      return processed
-          
+      stft_vh =  stft_vh * residue
+      return update_gui(stft_in, stft_vh, processed)
 
     mask=numpy.zeros_like(stft_vh)
     thresh = threshhold(numpy.ravel(stft_vh[stft_vh>=floor])) - man(numpy.ravel(stft_vh[stft_vh>=floor])) #we return to being uncertain about this
@@ -334,15 +340,9 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     mask[mask==0] = residue
     stft_hann = stft_hann * mask
     stft_vh = stft_vh * mask 
-    arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh[:-(257-NROWS)], bytes=False, norm=True) #only the first 4kHs span
-    #arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh[:-(257-NBINS)], bytes=False, norm=True) #only the first NBINS
-    #arr_color = cm.ScalarMappable(cmap="turbo").to_rgba(stft_vh, bytes=False, norm=True) #all the bins
-    arr_color = numpy.flipud(arr_color) #updown freq axis
-    arr_color = cv2.resize(arr_color, dsize=(660, 257), interpolation=cv2.INTER_CUBIC)
-    dpg.set_value("clean_texture", arr_color) 
     processed = istft(stft_hann,window=hann)
-    return processed  
-  
+    return update_gui( stft_in, stft_vh, processed)  
+    
   
 def padarray(A, size):
     t = size - len(A)
@@ -612,7 +612,6 @@ class StreamSampler(object):
         chans = []
         chans.append(denoise(audio[:, 0],self.denoise,self.entropy))
         chans.append(denoise(audio[:, 1],self.denoise,self.entropy))
-        dpg.set_value("plot2", chans[0])
         return numpy.column_stack(chans).astype(self.dtype).tobytes(), pyaudio.paContinue
 
     def stream_start(self):
@@ -673,7 +672,7 @@ if __name__ == "__main__":
         dpg.add_text("stft output")
         dpg.add_image("clean_texture")
         dpg.add_text("waveform out")
-        dpg.add_simple_plot( min_scale=-1.0, max_scale=1.0, width=660, height=100, tag="plot2") 
+        dpg.add_simple_plot(min_scale=-1.0, max_scale=1.0, width=660, height=100, tag="plot2") 
         dpg.add_button(label="Disable", tag="toggleswitch", callback=denoisetoggle)
         dpg.add_button(label="Disable", tag="toggleswitch2", callback=entropytoggle)
     
