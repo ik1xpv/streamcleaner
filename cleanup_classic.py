@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #idea and code and bugs by Joshuah Rainstar   : 
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup_classic1.2.py 12/19/2022
+#cleanup_classic1.1.8.py 12/11/2022
 
 
 #12/5/2022 : For best results, i recommend combining this with dynamic expansion and compression.
@@ -70,7 +70,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
 #conda install pip numpy scipy
-#pip install pipwin dearpygui np-rw-buffer ssqueezepy pyfftw
+#pip install librosa pipwin dearpygui np-rw-buffer
 #pipwin install pyaudio
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
 #step four: set the output for your SDR software to the input for the cable device.
@@ -92,7 +92,7 @@ import numba
 import numpy
 
 import pyaudio
-from ssqueezepy import stft, istft 
+from librosa import stft,istft
 
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
@@ -262,8 +262,7 @@ def denoise(data: numpy.ndarray):
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
-    data= numpy.asarray(data) #correct byte order of array    
-    data = numpy.pad(data,(0,128),mode="constant)#[:-127]
+    data= numpy.asarray(data,dtype=float) #correct byte order of array   
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
     #Squelch setting:         #0.0596347362323194074341078499369279376074 #total certainty, no noise copy - 95% of signal (the default)
     #Signal Recovery setting: #0.0567143290409783872999968 #total certainty, all signal copy - 95% of noise removed
@@ -271,7 +270,7 @@ def denoise(data: numpy.ndarray):
 
  
 
-    stft_boxcar = stft(data, n_fft=512, hop_len=128, window=boxcar) #get complex representation
+    stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vb =  numpy.abs(stft_boxcar) #returns the same as other methods
     stft_vb=(stft_vb-numpy.nanmin(stft_vb))/numpy.ptp(stft_vb) #normalize to 0,1
     floor = threshold(stft_vb.flatten())
@@ -283,7 +282,7 @@ def denoise(data: numpy.ndarray):
     ent_box = smoothpadded(ent_box)
 
 
-    stft_hann = stft(data, n_fft=512, hop_len=128, window=hann) #get complex representation
+    stft_hann = stft(data,n_fft=512,window=hann) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
     stft_vh =(stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
 
@@ -302,7 +301,7 @@ def denoise(data: numpy.ndarray):
 
     if factor < lettuce_euler_macaroni: 
       stft_hann = stft_hann * residue
-      processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
+      processed = istft(stft_hann,window=inversehann)
       return processed
 
     entropy = (maxent+minent)/2
@@ -323,7 +322,7 @@ def denoise(data: numpy.ndarray):
     # an ionosound sweep is also around or better than 24 samples, also
     if nbins<22 and maxstreak<16:
       stft_hann = stft_hann  * residue
-      processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
+      processed = istft(stft_hann ,window=inversehann)
       return processed
           
     mask=numpy.zeros_like(stft_vh)
@@ -337,8 +336,7 @@ def denoise(data: numpy.ndarray):
     mask[mask==0] = residue 
     
     stft_hann = stft_hann * mask
-    processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
-
+    processed = istft(stft_hann,window=inversehann)
     return processed
 
 
