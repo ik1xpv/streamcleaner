@@ -266,6 +266,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
+    data = numpy.pad(data,(0,128),mode="constant)#[:-127]
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
     #Squelch setting:         #0.0596347362323194074341078499369279376074 #total certainty, no noise copy - 95% of signal (the default)
     #Signal Recovery setting: #0.0567143290409783872999968 #total certainty, all signal copy - 95% of noise removed
@@ -308,7 +309,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     if factor < lettuce_euler_macaroni and ENTROPY == True : #sometimes the old ways are the best ways
       stft_hann = stft_hann * residue
       stft_vh = stft_vh * residue #no point wasting cycles
-      processed =istft(stft_hann,hop_len=128, window=inversehann)
+      processed =istft(stft_hann,hop_len=128, window=inversehann)[:-127]
       return update_gui(stft_in, stft_vh, processed)      
       #no point wasting cycles smoothing information which isn't there!
 
@@ -329,7 +330,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     
     if nbins<22 and maxstreak<16 and ENTROPY:
       stft_hann = stft_hann  * residue
-      processed = istft(stft_hann,hop_len=128, window=inversehann)
+      processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
       stft_vh =  stft_vh * residue
       return update_gui(stft_in, stft_vh, processed)
 
@@ -346,7 +347,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     mask[mask==0] = residue
     stft_hann = stft_hann * mask
     stft_vh = stft_vh * mask 
-    processed = istft(stft_hann,hop_len=128, window=inversehann)
+    processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
     return update_gui( stft_in, stft_vh, processed)  
     
   
