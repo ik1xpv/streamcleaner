@@ -1,6 +1,6 @@
 #This program will crash if you feed it stereo. Feel free to submit a patch to add stereo handling.
 '''
-Demo v1.2
+Demo v1.1.8
 Copyright 2022 Oscar Steila, Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
@@ -33,9 +33,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #install python.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
-#conda update --all
 #conda install pip numpy scipy
-#pip install tk dearpygui np-rw-buffer numba ssqueezepy pyfftw
+#pip install librosa tk dearpygui np-rw-buffer numba
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
 #run it with python demo_fileIO.py
 
@@ -48,7 +47,7 @@ import os
 import numpy
 import numba
 
-from ssqueezepy import stft, istft 
+from librosa import stft, istft
 from time import time as time
 
 
@@ -212,7 +211,6 @@ def denoise(data: numpy.ndarray):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
-    data = numpy.pad(data,(0,128),mode="constant")
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
     #Squelch setting:         #0.0596347362323194074341078499369279376074 #total certainty, no noise copy - 95% of signal (the default)
     #Signal Recovery setting: #0.0567143290409783872999968 #total certainty, all signal copy - 95% of noise removed
@@ -220,7 +218,7 @@ def denoise(data: numpy.ndarray):
 
  
 
-    stft_boxcar = stft(data, n_fft=512, hop_len=128, window=boxcar) #get complex representation
+    stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
     stft_vb =  numpy.abs(stft_boxcar) #returns the same as other methods
     stft_vb=(stft_vb-numpy.nanmin(stft_vb))/numpy.ptp(stft_vb) #normalize to 0,1
     floor = threshold(stft_vb.flatten())
@@ -232,7 +230,7 @@ def denoise(data: numpy.ndarray):
     ent_box = smoothpadded(ent_box)
 
 
-    stft_hann = stft(data, n_fft=512, hop_len=128, window=hann) #get complex representation
+    stft_hann = stft(data,n_fft=512,window=hann) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
     stft_vh =(stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
 
@@ -251,7 +249,7 @@ def denoise(data: numpy.ndarray):
 
     if factor < lettuce_euler_macaroni: 
       stft_hann = stft_hann * residue
-      processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
+      processed = istft(stft_hann,window=hann)
       return processed
 
     entropy = (maxent+minent)/2
@@ -270,7 +268,7 @@ def denoise(data: numpy.ndarray):
     #then we can consider the frame to consist of speech
     if nbins<22 and maxstreak<16:
       stft_hann = stft_hann  * residue
-      processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
+      processed = istft(stft_hann ,window=hann)
       return processed
 
     mask=numpy.zeros_like(stft_vh)
@@ -282,7 +280,7 @@ def denoise(data: numpy.ndarray):
     mask=(mask-numpy.nanmin(mask))/numpy.ptp(mask)#correct basis    
     mask[mask==0] = residue 
     stft_hann = stft_hann * mask
-    processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127]
+    processed = istft(stft_hann,window=hann)
     return processed
 
 
