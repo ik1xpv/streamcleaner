@@ -262,8 +262,7 @@ def denoise(data: numpy.ndarray):
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
-    data= numpy.asarray(data,dtype=numpy.float64) #correct byte order of array   
-    data = numpy.hstack((data,numpy.zeros(128))) 
+    data= numpy.asarray(data) #correct byte order of array    
     
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
     #Squelch setting:         #0.0596347362323194074341078499369279376074 #total certainty, no noise copy - 95% of signal (the default)
@@ -303,7 +302,7 @@ def denoise(data: numpy.ndarray):
 
     if factor < lettuce_euler_macaroni: 
       stft_hann = stft_hann * residue
-      processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127] 
+      processed = istft(stft_hann,hop_len=128, window=inversehann)
       return processed
 
     entropy = (maxent+minent)/2
@@ -324,7 +323,7 @@ def denoise(data: numpy.ndarray):
     # an ionosound sweep is also around or better than 24 samples, also
     if nbins<22 and maxstreak<16:
       stft_hann = stft_hann  * residue
-      processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127] 
+      processed = istft(stft_hann,hop_len=128, window=inversehann)
       return processed
           
     mask=numpy.zeros_like(stft_vh)
@@ -338,7 +337,7 @@ def denoise(data: numpy.ndarray):
     mask[mask==0] = residue 
     
     stft_hann = stft_hann * mask
-    processed = istft(stft_hann,hop_len=128, window=inversehann)[:-127] 
+    processed = istft(stft_hann,hop_len=128, window=inversehann)
 
     return processed
 
