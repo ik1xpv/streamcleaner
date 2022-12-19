@@ -262,7 +262,7 @@ def denoise(data: numpy.ndarray):
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
-    data= numpy.asarray(data,dtype=float64) #correct byte order of array   
+    data= numpy.asarray(data,dtype=numpy.float64) #correct byte order of array   
     data = numpy.hstack((data,numpy.zeros(128))) 
     
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
