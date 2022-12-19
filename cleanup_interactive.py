@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #idea and code and bugs by Joshuah Rainstar   : https://groups.io/g/NextGenSDRs/message/1085
 #fork, mod by Oscar Steila : https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup_interactive1.1.8.py
+#cleanup_interactive1.2.py
 
 #12/11/2022 : this is no longer an experiment
 
@@ -45,8 +45,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #install python.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
-#pip install numpy
-#pip install librosa pipwin dearpygui np-rw-buffer opencv-python numba matplotlib
+#conda update --all
+#conda install pip numpy scipy
+#pip install ssqueezepy pipwin dearpygui np-rw-buffer opencv-python numba matplotlib pyfftw
 #pipwin install pyaudio
 #if all three these steps successfully complete, you're ready to go, otherwise fix things.
 #step four: set the output for your SDR software to the input for the cable device.
@@ -67,8 +68,8 @@ import os
 import numpy
 import numba
 import pyaudio
-import librosa
-from librosa import stft, istft
+from ssqueezepy import stft, istft 
+
 from time import sleep
 from np_rw_buffer import AudioFramingBuffer
 import dearpygui.dearpygui as dpg
@@ -271,7 +272,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     #50/50 setting:           #0.0581745326366488973670523249684639688037 #an acceptable tradeoff for most use cases
 
 
-    stft_boxcar = stft(data,n_fft=512,window=boxcar) #get complex representation
+    stft_boxcar = stft(data, n_fft=512, hop_len=128, window=boxcar) #get complex representation
     stft_vb =  numpy.abs(stft_boxcar) #returns the same as other methods
     stft_vb=(stft_vb-numpy.nanmin(stft_vb))/numpy.ptp(stft_vb) #normalize to 0,1
     floor = threshold(stft_vb.flatten())
@@ -283,7 +284,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     ent_box = smoothpadded(ent_box)
 
 
-    stft_hann = stft(data,n_fft=512,window=hann) #get complex representation
+    stft_hann = stft(data, n_fft=512, hop_len=128, window=hann) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
     stft_vh = (stft_vh -numpy.nanmin(stft_vh))/numpy.ptp(stft_vh) #normalize to 0,1
     stft_in = stft_vh.copy()  
@@ -307,7 +308,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     if factor < lettuce_euler_macaroni and ENTROPY == True : #sometimes the old ways are the best ways
       stft_hann = stft_hann * residue
       stft_vh = stft_vh * residue #no point wasting cycles
-      processed = istft(stft_hann,window=inversehann)
+      processed =istft(stft_hann,hop_len=128, window=inversehann)
       return update_gui(stft_in, stft_vh, processed)      
       #no point wasting cycles smoothing information which isn't there!
 
@@ -328,7 +329,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     
     if nbins<22 and maxstreak<16 and ENTROPY:
       stft_hann = stft_hann  * residue
-      processed = istft(stft_hann ,window=inversehann)
+      processed = istft(stft_hann,hop_len=128, window=inversehann)
       stft_vh =  stft_vh * residue
       return update_gui(stft_in, stft_vh, processed)
 
@@ -345,7 +346,7 @@ def denoise(data: numpy.ndarray,DENOISE,ENTROPY):
     mask[mask==0] = residue
     stft_hann = stft_hann * mask
     stft_vh = stft_vh * mask 
-    processed = istft(stft_hann,window=inversehann)
+    processed = istft(stft_hann,hop_len=128, window=inversehann)
     return update_gui( stft_in, stft_vh, processed)  
     
   
