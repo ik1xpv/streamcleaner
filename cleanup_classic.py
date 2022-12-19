@@ -70,7 +70,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
 #conda install pip numpy scipy
-#pip install pipwin dearpygui np-rw-buffer ssqueezepy
+#pip install pipwin dearpygui np-rw-buffer ssqueezepy pyfftw
 #pipwin install pyaudio
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
 #step four: set the output for your SDR software to the input for the cable device.
