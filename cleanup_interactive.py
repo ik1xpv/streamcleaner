@@ -173,15 +173,21 @@ def threshold(data: numpy.ndarray):
 
 @numba.jit()
 def fast_entropy(data: numpy.ndarray):
-   logit = numpy.asarray([-6.,-3.40119738,-2.67414865,-2.23359222,-1.9095425,-1.64865863,-1.42711636,-1.23214368,-1.05605267,-0.89381788,-0.74193734,-0.597837,-0.45953233,-0.3254224,-0.19415601,-0.06453852,0.06453852,0.19415601,0.3254224,0.45953233,0.597837,0.74193734,0.89381788,1.05605267,1.23214368,1.42711636,1.64865863,1.9095425,2.23359222,2.67414865,3.40119738,6.])
-    #predefining the logit distribution saves some cycles. This is the same as corrected_logit(32).
+   logit = numpy.asarray([0.,0.17858813,0.245005,0.28617399,0.31653602,0.34103567,0.36192314,0.38040319,0.39719445,0.41276091,0.42742146,0.4414072,0.45489381,0.46802117,0.48090603,0.49365065,0.50634935,0.51909397,0.53197883,0.54510619,0.5585928,0.57257854,0.58723909,0.60280555,0.61959681,0.63807686,0.65896433,0.68346398,0.71382601,0.754995,0.82141187,1.])
+    #predefining the logit distribution saves some cycles.
+    #to generate your logistic(real) function, here's what you need to do:
+    #fprint = numpy.linspace(0, 1, points) generate the number of points you need, equispaced 0 to 1 inclusive.
+    #fprint[1:-1]  /= 1 - fprint [1:-1] #all but first and last, divide by 1 - the value.
+    #fprint[1:-1]  = numpy.log(fprint[1:-1]) #all but the first and last, log(value).
+    #fprint[0] = -4.59511985013459
+    #fprint[-1] = 4.59511985013459 using log(9.0), log(99.0), log(999.0), add 9's until you find the next higher value then the next to last value in your array.
+    # fill the first with the negative of this, and the last with the positive. Now, you're done. You've found the constraint.
    entropy = numpy.zeros(data.shape[1])
    for each in numba.prange(data.shape[1]):
       d = data[:,each]
-      d = numpy.interp(d, (d[0], d[-1]), (-6, +6))
+      d = numpy.interp(d, (d[0], d[-1]), (-0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
-
 
 @numba.jit()
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray):
