@@ -129,9 +129,31 @@ def smoothpadded(data: numpy.ndarray):
 def threshold(data: numpy.ndarray):
  return numpy.sqrt(numpy.nanmean(numpy.square(numpy.abs(data -numpy.nanmedian(numpy.abs(data - numpy.nanmedian(data[numpy.nonzero(data)]))))))) + numpy.nanmedian(data[numpy.nonzero(data)])
 
+
+@numba.njit()
+def generate_reasonable_logistic(points):
+  fprint = numpy.linspace(0.0,1.0,points)
+  fprint [1:-1] /= 1 - fprint[1:-1]
+  fprint [1:-1] = numpy.log(fprint[1:-1])
+  endpoint = 0.0
+  counter = 1
+  endpoint = numpy.log(scale(counter))
+  while endpoint < fprint[-2]:
+    counter = counter + 1
+    endpoint_new = numpy.log(scale(counter))
+    if endpoint_new >= fprint[-2]:
+      endpoint = endpoint_new
+      break
+
+  fprint[-1] = endpoint
+  fprint[0] = -fprint[-1]
+  fprint = numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
+  return fprint
+
+
 @numba.jit()
 def fast_entropy(data: numpy.ndarray):
-   logit = numpy.asarray([0.,0.17858813,0.245005,0.28617399,0.31653602,0.34103567,0.36192314,0.38040319,0.39719445,0.41276091,0.42742146,0.4414072,0.45489381,0.46802117,0.48090603,0.49365065,0.50634935,0.51909397,0.53197883,0.54510619,0.5585928,0.57257854,0.58723909,0.60280555,0.61959681,0.63807686,0.65896433,0.68346398,0.71382601,0.754995,0.82141187,1.])
+   logit = numpy.asarray([0.,0.12991201,0.20902297,0.2569604,0.2922206,0.32060766,0.34471391,0.3659291,0.38508976,0.4027427,0.41926899,0.4349487,0.44999779,0.46459043,0.47887367,0.49297749,0.50702251,0.52112633,0.53540957,0.55000221,0.5650513,0.58073101,0.5972573,0.61491024,0.6340709,0.65528609,0.67939234,0.7077794,0.7430396,0.79097703,0.87008799,1.])
     #predefining the logit distribution saves some cycles.
     #to generate your logistic(real) function, here's what you need to do:
     #fprint = numpy.linspace(0, 1, points) generate the number of points you need, equispaced 0 to 1 inclusive.
