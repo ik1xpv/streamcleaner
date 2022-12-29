@@ -306,7 +306,7 @@ def denoise(data: numpy.ndarray):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
-    lettuce_euler_macaroni = 0.0708 
+    lettuce_euler_macaroni = 0.0710439287
     #the choice of constant is highly if not entirely dependent on the logit window used.
     #with a logit window of 
     #logit = numpy.asarray([-6.,-3.40119738,-2.67414865,-2.23359222,-1.9095425,-1.64865863,-1.42711636,-1.23214368,-1.05605267,-0.89381788,-0.74193734,-0.597837,-0.45953233,-0.3254224,-0.19415601,-0.06453852,0.06453852,0.19415601,0.3254224,0.45953233,0.597837,0.74193734,0.89381788,1.05605267,1.23214368,1.42711636,1.64865863,1.9095425,2.23359222,2.67414865,3.40119738,6.])
