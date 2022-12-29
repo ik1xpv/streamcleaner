@@ -306,10 +306,14 @@ def denoise(data: numpy.ndarray):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
-    lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074 #gompetz constant
-    #Squelch setting:         #0.0596347362323194074341078499369279376074 #total certainty, no noise copy - 95% of signal (the default)
-    #Signal Recovery setting: #0.0567143290409783872999968 #total certainty, all signal copy - 95% of noise removed
-    #50/50 setting:           #0.0581745326366488973670523249684639688037 #an acceptable tradeoff for most use cases
+    lettuce_euler_macaroni = 0.0747597920253
+    #the choice of constant is highly if not entirely dependent on the logit window used.
+    #with a logit window of 
+    #logit = numpy.asarray([-6.,-3.40119738,-2.67414865,-2.23359222,-1.9095425,-1.64865863,-1.42711636,-1.23214368,-1.05605267,-0.89381788,-0.74193734,-0.597837,-0.45953233,-0.3254224,-0.19415601,-0.06453852,0.06453852,0.19415601,0.3254224,0.45953233,0.597837,0.74193734,0.89381788,1.05605267,1.23214368,1.42711636,1.64865863,1.9095425,2.23359222,2.67414865,3.40119738,6.])
+    #lettuce_euler_macaroni is well set at 0.0596347362323194074341078499369279376074
+    #however, with the present window attempting to more concisely choose endpoints, this constraint must be altered.
+    #as a bonus, however, the absolute similiarty to noise is now, perhaps, more properly modeled.
+    
 
  
 
