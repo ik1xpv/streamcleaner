@@ -1,5 +1,5 @@
 #a collection of the functions perhaps to be used and a rough draft of how this will work.
-
+    
 boxcar = numpy.ones(fft_len) * 0.5
 hann = pra.hann(fft_len, flag='asymmetric', length='full')
 
@@ -110,7 +110,7 @@ def smooth_mask(mask: numpy.ndarray,entropy:numpy.ndarray: residue_constant: flo
        
         #boxcar and hann analysis is done here.
         #one OLA stft, one mask, and one entropy array are written to outside of this function- for each channel.
-
+        #these can be written as two 2d ringbuffers.
 
         #for each time bin, atomic_entropy and atomic mask is called.
         #these two sets of values should be put together into a buffer.
