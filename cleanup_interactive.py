@@ -11,17 +11,14 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN 
 '''
 '''
 Copyright 2022 Oscar Steila, Joshuah Rainstar
-
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
 of the License, or (at your option) any later version.
-
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
@@ -205,12 +202,12 @@ def fast_entropy(data: numpy.ndarray):
     #fprint[0] = -4.59511985013459
     #fprint[-1] = 4.59511985013459 using log(9.0), log(99.0), log(999.0), add 9's until you find the next higher value then the next to last value in your array.
     # fill the first with the negative of this, and the last with the positive. Now, you're done. You've found the constraint.
-   entropy = numpy.zeros(data.shape[1])
-   for each in numba.prange(data.shape[1]):
+    entropy = numpy.zeros(data.shape[1])
+    for each in numba.prange(data.shape[1]):
       d = data[:,each]
       d = numpy.interp(d, (d[0], d[-1]), (-0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
-   return entropy
+    return entropy
 
 @numba.jit()
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray):
@@ -717,4 +714,3 @@ if __name__ == "__main__":
 
         
     close()  # clean up the program runtime when the user closes the window
-  
