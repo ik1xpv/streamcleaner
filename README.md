@@ -12,3 +12,7 @@ This code is MIT and GPL licensed, depending on numba, numpy, librosa's stft, an
 invoking dearpygui, tk, pyaudio, and other components as needed, but they are not required for the core algorithm to function.
 It would be easy to port this algorithm to other languages provided you have a numpy-equivalent array handling library and stft.
 
+Most of the programs provided here require a minimum of a 1 second frame to deliver good results.
+That means they are not quite realtime but 1 second delayed.
+realtimeentropy.py on the other hand is a 100ms delayed extraction of the entropy function without masking.
+
