@@ -1,9 +1,5 @@
 print("Attention: this file does not work correctly. I am still debugging it. Please do not run this file unless prompted.")
 exit(0)
-
-
-
-#debugging still in progress
 """
 Copyright 2022 Joshuah Rainstar, Oscar Steila
 
@@ -371,7 +367,7 @@ class StreamSampler(object):
             #for example: if audio skips, then the past buffer won't be a good mask candidate,
             #which will detrimentally impact smoothing and min/max, not to mention entropy.
             bins = self.stft_buffer_left.read(9)
-            masked = bins# * mask_smoothed
+            masked = bins * mask_smoothed
             chans.append(self.stft_hann.synthesis(masked))
 
             mask = self.mask_buffer_right.read_overlap(18, 9)
@@ -379,7 +375,7 @@ class StreamSampler(object):
             mask_smoothed = smooth_mask(mask_working, self.residue, self.entropy_constant)  # remember smooth_mask also crops
             self.mask_buffer_old_right = mask[0:9,:] #write the old mask
             bins = self.stft_buffer_right.read(9)
-            masked = bins #* mask_smoothed #remove this once debugged
+            masked = bins * mask_smoothed 
             chans.append(self.stft_hann.synthesis(masked))
 
         return numpy.column_stack(chans).astype(self.dtype).tobytes(), pyaudio.paContinue
