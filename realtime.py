@@ -1,3 +1,5 @@
+print("this is only an experiment and does not reflect the performance of other scripts located in this directory")
+exit(0)
 """
 Copyright 2022 Joshuah Rainstar, Oscar Steila
 
