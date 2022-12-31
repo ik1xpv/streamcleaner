@@ -32,6 +32,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
 # cleanup_realtime1.1.8.py 12/30/2022
+#"realtime" ? 36 ms delay, and the occasional frame skip.
+
 
 import numpy
 import pyroomacoustics as pra
@@ -39,7 +41,6 @@ import pyaudio
 
 from np_rw_buffer import RingBuffer
 import dearpygui.dearpygui as dpg
-from matplotlib import pyplot as plt
 
 def runningMeanFast(x, N):
     return numpy.convolve(x, numpy.ones((N,)) / N, mode="valid")
@@ -98,7 +99,7 @@ def longestConsecutive(nums):
 
 def entropy_gate_and_smoothing(entropy: numpy.ndarray, entropy_constant: float):
     # 9 *4 = 27ms before, after, and during the filter.
-    smoothed = numpy.convolve(entropy, numpy.ones(9), 'same') / 9
+    smoothed = numpy.convolve(entropy, numpy.ones(3), 'same') / 3
     smoothed_gated = smoothed.copy()
     smoothed_gated[smoothed_gated < entropy_constant] = 0
     smoothed_gated[smoothed_gated > 0] = 1
@@ -220,17 +221,23 @@ class StreamSampler(object):
         self._sample_rate = sample_rate
         self._channels = channels
         self.channels = channels
-        self.residue = 0.01
-        self.entropy_constant = 0.0074
-        self.mask_buffer_left = RingBuffer(36, 130)
+        self.residue = 0.001
+        self.entropy_constant = 0.20
+        self.mask_buffer_left = RingBuffer(27, 130)
 
-        self.stft_buffer_left = RingBuffer(36, 129)  # we need 18 x 129
+        self.stft_buffer_left = RingBuffer(27, 129)  # we need 18 x 129
         #this will write in chunks of 9.
         self.stft_buffer_left.dtype = numpy.complex128
+        self.smoothed_buffer_left = RingBuffer(27, 129)  # we need 18 x 129
+        # this will write in chunks of 9.
+        self.smoothed_buffer_left.dtype = numpy.complex128
+        self.smoothed_buffer_right = RingBuffer(27, 129)  # we need 18 x 129
+        # this will write in chunks of 9.
+        self.smoothed_buffer_right.dtype = numpy.complex128
         self.mask_buffer_old_left = numpy.ones((9,130),dtype=numpy.float64)
 
-        self.mask_buffer_right = RingBuffer(36, 130)
-        self.stft_buffer_right = RingBuffer(36, 129)
+        self.mask_buffer_right = RingBuffer(27, 130)
+        self.stft_buffer_right = RingBuffer(27, 129)
         self.stft_buffer_right.dtype = numpy.complex128
         self.mask_buffer_old_right = numpy.ones((9, 130), dtype=numpy.float64)
         self.micindex = micindex
@@ -346,37 +353,41 @@ class StreamSampler(object):
         self.mask_buffer_right.expanding_write(mask,error=False)
         self.stft_buffer_right.expanding_write(hann,error=False)
 
-        return None, pyaudio.paContinue
-
-    def non_blocking_stream_write(self, in_data, frame_count, time_info, status):
-        if len(self.mask_buffer_left) < (18) or len(self.mask_buffer_right) < (18):
-            audio = numpy.zeros((self._processing_size, self.channels), dtype=self.dtype)
-            return audio, pyaudio.paContinue
-        else:
-            print(len(self.stft_buffer_left))
-            chans = []
-            # for each channel:
+        if len (self.mask_buffer_left)> (18) and len(self.mask_buffer_right) > (18):
             mask = self.mask_buffer_left.read_overlap(18, 9)
-            #this allows us to gather future, present, past
-            #and then we crop it and apply it
             mask_working = numpy.vstack((self.mask_buffer_old_left,mask))
             mask_smoothed = smooth_mask(mask_working, self.residue, self.entropy_constant)  # remember smooth_mask also crops
             self.mask_buffer_old_left = mask[0:9,:]
-            #save present for use on the next frame.
-            #note: This is not assured to work properly.
-            #for example: if audio skips, then the past buffer won't be a good mask candidate,
-            #which will detrimentally impact smoothing and min/max, not to mention entropy.
             bins = self.stft_buffer_left.read(9)
             masked = bins * mask_smoothed
-            chans.append(self.stft_hann.synthesis(masked))
+            self.smoothed_buffer_left.expanding_write(masked, error=False)
 
             mask = self.mask_buffer_right.read_overlap(18, 9)
-            mask_working = numpy.vstack((self.mask_buffer_old_right, mask))
-            mask_smoothed = smooth_mask(mask_working, self.residue, self.entropy_constant)  # remember smooth_mask also crops
-            self.mask_buffer_old_right = mask[0:9,:] #write the old mask
+            mask_working = numpy.vstack((self.mask_buffer_old_left, mask))
+            mask_smoothed = smooth_mask(mask_working, self.residue,
+                                    self.entropy_constant)  # remember smooth_mask also crops
+            self.mask_buffer_old_left = mask[0:9, :]
             bins = self.stft_buffer_right.read(9)
-            masked = bins * mask_smoothed 
-            chans.append(self.stft_hann.synthesis(masked))
+            masked = bins * mask_smoothed
+            self.smoothed_buffer_right.expanding_write(masked, error=False)
+
+
+        return None, pyaudio.paContinue
+
+    def non_blocking_stream_write(self, in_data, frame_count, time_info, status):
+        if len(self.smoothed_buffer_right) < (9) or len(self.smoothed_buffer_left) < (9):
+            print("skipping!")
+            audio = numpy.zeros((self._processing_size, self.channels), dtype=self.dtype)
+            return audio, pyaudio.paContinue
+        else:
+            chans = []
+            bins = self.smoothed_buffer_left.read(9)
+            chans.append(self.stft_hann.synthesis(bins))
+
+            bins = self.smoothed_buffer_right.read(9)
+            chans.append(self.stft_hann.synthesis(bins))
+            #if we do absolutely nothing here, there's no risk of loosing sync
+            #so all we do here is monitor for available audio and send it out
 
         return numpy.column_stack(chans).astype(self.dtype).tobytes(), pyaudio.paContinue
 
