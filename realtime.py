@@ -1,5 +1,3 @@
-print("Attention: this file does not work correctly. I am still debugging it. Please do not run this file unless prompted.")
-exit(0)
 """
 Copyright 2022 Joshuah Rainstar, Oscar Steila
 
@@ -36,15 +34,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 import numpy
-import pyroomacoustics as pra
+from pyroomacoustics.transform.stft import compute_synthesis_window
+from ssqueezepy import stft,istft
 import pyaudio
 
 from np_rw_buffer import RingBuffer
-import dearpygui.dearpygui as dpg
 
 def runningMeanFast(x, N):
     return numpy.convolve(x, numpy.ones((N,)) / N, mode="valid")
-
 
 def numpy_convolve_filter(data: numpy.ndarray):
     normal = data.copy()
@@ -68,10 +65,9 @@ def numpy_convolve_filter(data: numpy.ndarray):
 
 def numpyfilter_wrapper_50(data: numpy.ndarray):
     d = data.copy()
-    for i in range(50):
+    for i in range(5):
         d = numpy_convolve_filter(d)
     return d
-
 
 def atomic_entropy(logit: numpy.ndarray, hann: numpy.ndarray, boxcar: numpy.ndarray):
     # this function should be fed three arrays of an identical size. the logistic function should be generated ahead
@@ -83,7 +79,6 @@ def atomic_entropy(logit: numpy.ndarray, hann: numpy.ndarray, boxcar: numpy.ndar
     boxcar = numpy.interp(boxcar, (boxcar[0], boxcar[-1]), (0, +1))
     return ((1 - numpy.corrcoef(hann, logit)[0, 1]) + (1 - numpy.corrcoef(boxcar, logit)[0, 1])) / 2
     # returns the pre-smoothed, averaged individual time bin entropy calculation
-
 
 def longestConsecutive(nums):
     streak = 0
@@ -101,6 +96,7 @@ def entropy_gate_and_smoothing(entropy: numpy.ndarray, entropy_constant: float):
     # 9 *4 = 27ms before, after, and during the filter.
     smoothed = numpy.convolve(entropy, numpy.ones(3), 'same') / 3
     smoothed_gated = smoothed.copy()
+
     smoothed_gated[smoothed_gated < entropy_constant] = 0
     smoothed_gated[smoothed_gated > 0] = 1
     total = numpy.sum(smoothed_gated)
@@ -113,21 +109,23 @@ def entropy_gate_and_smoothing(entropy: numpy.ndarray, entropy_constant: float):
         return smoothed_gated
 
 
-def atomic_mask(hann: numpy.ndarray):
-    # this function should be fed [0:nbins] of one time bin, inserted to an array of zeros, appended to the mask.
-    threshold = numpy.sqrt(numpy.nanmean(
-        numpy.square(numpy.abs(hann - numpy.nanmedian(numpy.abs(hann - numpy.nanmedian(hann[numpy.nonzero(hann)])))))))
-    hann[hann < threshold] = 0
-    hann[hann > 0] = 1
-    return hann
+def man(arr):
+    med = numpy.nanmedian(arr[numpy.nonzero(arr)])
+    return numpy.nanmedian(numpy.abs(arr - med))
 
+def atd(arr):
+    x = numpy.square(numpy.abs(arr - man(arr)))
+    return numpy.sqrt(numpy.nanmean(x))
 
 def iterated_mask_generation(logit: numpy.ndarray, hann: numpy.ndarray, boxcar: numpy.ndarray, NBINS):
     mask = numpy.zeros((hann.shape[0], hann.shape[1] + 1))
     for each in range(hann.shape[0]):
-        mask[each, :NBINS] = atomic_mask(hann[each, :NBINS])
         mask[each, -1] = atomic_entropy(logit, hann[each, :NBINS], boxcar[each, :NBINS])
-
+    e = hann.copy()
+    threshold = atd(e) + man(e)
+    e[e < threshold] = 0
+    e[e > 0] = 1
+    mask[:,:-1] = e
     return mask  # this should return a 9x130 array with the entropy in the final row
 
 
@@ -135,12 +133,12 @@ def smooth_mask(mask: numpy.ndarray, residue_constant: float, entropy_constant: 
     entropy = mask[:, -1]  # should be 27 samples
     entropy = entropy_gate_and_smoothing(entropy, entropy_constant)
     mask = mask[:, :-1]
-    smoothed = mask * entropy[:,None]
+    
+    #disabling thresholding
+    smoothed = numpy.ones(mask.shape) * entropy[:,None]
 
-    smoothed = numpyfilter_wrapper_50(smoothed)
-    smoothed = (smoothed - numpy.nanmin(smoothed)) / numpy.ptp(smoothed)
-    smoothed = smoothed[9:18, :]
-    smoothed[smoothed == 0] = residue_constant
+    #smoothed = numpyfilter_wrapper_50(smoothed)
+    smoothed[smoothed < residue_constant] = residue_constant
     return smoothed
 
 
@@ -175,6 +173,21 @@ def generate_reasonable_logistic(points):
     fprint = numpy.interp(fprint, (fprint[0], fprint[-1]), (0, 1))
     return fprint
 
+def hann_local(M, sym=True):
+    a = [0.5, 0.5]
+    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
+    w = numpy.zeros(M)
+    for k in range(len(a)):
+        w += a[k] * numpy.cos(k * fac)
+    return w
+
+def boxcar(M, sym=True):
+    a = [0.5, 0.5]
+    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
+    w = numpy.zeros(M)
+    for k in range(len(a)):
+        w += a[k] * numpy.cos(k * fac)
+        return w
 
 class StreamSampler(object):
     dtype_to_paformat = {
@@ -205,41 +218,41 @@ class StreamSampler(object):
 
     def __init__(self, sample_rate=16000, channels=2,  micindex=1, speakerindex=1, dtype=numpy.float32):
         self.pa = pyaudio.PyAudio()
-        self.fft_len = 256
+        self.fft_len = 512
         self.hop_ratio = 4
-        self.NBINS = 46  # todo: add a helper routine to set this based on a frequency selected by the user for a lowpass window
+        self.NBINS = 63  #around or less than 4000hz
         self.hop_size = self.fft_len // self.hop_ratio
-        self.hann_window = pra.hann(self.fft_len, flag="asymetric", length="full")
-        self.boxcar_window = numpy.ones(self.fft_len) * 0.5
-        self.synthesis_window = pra.transform.stft.compute_synthesis_window(self.hann_window, self.hop_size)
+        self.hann_window = hann_local(self.fft_len) #benefit of asymetric window not established. hann(self.fft_len, flag='asymmetric', length='full')
+        self.boxcar_window = boxcar(self.fft_len)
+        self.synthesis_window = compute_synthesis_window(self.hann_window, self.hop_size)
         self._processing_size = ((self.fft_len * 2) + self.hop_size)
-        self.stft_hann = pra.transform.STFT(self.fft_len, hop=self.hop_size, analysis_window=self.hann_window,
-                                            synthesis_window=self.synthesis_window, streaming=True, num_frames=9)
-        self.stft_boxcar = pra.transform.STFT(self.fft_len, hop=self.hop_size, analysis_window=self.boxcar_window,
-                                              streaming=True, num_frames=9)
+
         self.logit = generate_reasonable_logistic(self.NBINS)
         self._sample_rate = sample_rate
         self._channels = channels
         self.channels = channels
-        self.residue = 0.001
-        self.entropy_constant = 0.20
-        self.mask_buffer_left = RingBuffer(27, 130)
+        self.residue = 0.00001
+        self.entropy_constant = 0.065
 
-        self.stft_buffer_left = RingBuffer(27, 129)  # we need 18 x 129
-        #this will write in chunks of 9.
+        self.stft_buffer_left = RingBuffer(27, 257)  # we need 18 x 129
         self.stft_buffer_left.dtype = numpy.complex128
-        self.smoothed_buffer_left = RingBuffer(27, 129)  # we need 18 x 129
-        # this will write in chunks of 9.
+        self.smoothed_buffer_left = RingBuffer(27, 257)  # we need 18 x 129
         self.smoothed_buffer_left.dtype = numpy.complex128
-        self.smoothed_buffer_right = RingBuffer(27, 129)  # we need 18 x 129
-        # this will write in chunks of 9.
-        self.smoothed_buffer_right.dtype = numpy.complex128
-        self.mask_buffer_old_left = numpy.ones((9,130),dtype=numpy.float64)
 
-        self.mask_buffer_right = RingBuffer(27, 130)
-        self.stft_buffer_right = RingBuffer(27, 129)
+        self.mask_buffer_left = RingBuffer(27, 258)
+        self.mask_buffer_left.dtype = numpy.float64
+        self.mask_buffer_old_left = numpy.ones((9,258),dtype=numpy.float64)
+
+        self.stft_buffer_right = RingBuffer(27, 257)
         self.stft_buffer_right.dtype = numpy.complex128
-        self.mask_buffer_old_right = numpy.ones((9, 130), dtype=numpy.float64)
+        self.smoothed_buffer_right = RingBuffer(27, 257)
+        self.smoothed_buffer_right.dtype = numpy.complex128
+
+        self.mask_buffer_right = RingBuffer(27, 258)
+        self.mask_buffer_right.dtype = numpy.float64
+        self.mask_buffer_old_right = numpy.ones((9, 258), dtype=numpy.float64)
+
+
         self.micindex = micindex
         self.speakerindex = speakerindex
         self.micstream = None
@@ -340,35 +353,39 @@ class StreamSampler(object):
                                                                                               self.channels)
 
         audio_in_left = audio_in[:, 0]
-        boxcar = self.stft_boxcar.analysis(audio_in_left)
-        hann = self.stft_hann.analysis(audio_in_left)
+
+
+        boxcar = stft(x=audio_in_left, window=self.boxcar_window, n_fft=self.fft_len, hop_len=self.hop_size).T
+        hann = stft(x=audio_in_left, window=self.hann_window, n_fft=self.fft_len, hop_len=self.hop_size).T
         mask = iterated_mask_generation(self.logit, numpy.abs(hann), numpy.abs(boxcar), self.NBINS)
         self.mask_buffer_left.expanding_write(mask,error=False)
         self.stft_buffer_left.expanding_write(hann,error=False)
 
         audio_in_right = audio_in[:, 1]
-        boxcar = self.stft_boxcar.analysis(audio_in_right)
-        hann = self.stft_hann.analysis(audio_in_right)
+        boxcar =  stft(x=audio_in_right, window=self.boxcar_window, n_fft=self.fft_len, hop_len=self.hop_size).T
+        hann = stft(x=audio_in_right, window=self.hann_window, n_fft=self.fft_len, hop_len=self.hop_size).T
         mask = iterated_mask_generation(self.logit, numpy.abs(hann), numpy.abs(boxcar), self.NBINS)
         self.mask_buffer_right.expanding_write(mask,error=False)
         self.stft_buffer_right.expanding_write(hann,error=False)
 
-        if len (self.mask_buffer_left)> (18) and len(self.mask_buffer_right) > (18):
+        if len (self.mask_buffer_left)> (17) and len(self.mask_buffer_right) > (17):
             mask = self.mask_buffer_left.read_overlap(18, 9)
-            mask_working = numpy.vstack((mask,self.mask_buffer_old_left))
-            mask_smoothed = smooth_mask(mask_working, self.residue, self.entropy_constant)  # remember smooth_mask also crops
+            mask_working = numpy.vstack((self.mask_buffer_old_left,mask))
+            mask_smoothed = smooth_mask(mask_working, self.residue, self.entropy_constant)
             self.mask_buffer_old_left = mask[0:9,:]
             bins = self.stft_buffer_left.read(9)
-            masked = bins * mask_smoothed
+            masked = bins * mask_smoothed[9:18,:]
             self.smoothed_buffer_left.expanding_write(masked, error=False)
 
             mask = self.mask_buffer_right.read_overlap(18, 9)
-            mask_working = numpy.vstack((mask,self.mask_buffer_old_left))
+            mask_working = numpy.vstack((self.mask_buffer_old_right,mask))
             mask_smoothed = smooth_mask(mask_working, self.residue,
                                     self.entropy_constant)  # remember smooth_mask also crops
-            self.mask_buffer_old_left = mask[0:9, :]
+
+            self.mask_buffer_old_right = mask[0:9, :]
             bins = self.stft_buffer_right.read(9)
-            masked = bins * mask_smoothed
+
+            masked = bins * mask_smoothed[9:18,:]
             self.smoothed_buffer_right.expanding_write(masked, error=False)
 
 
@@ -376,16 +393,15 @@ class StreamSampler(object):
 
     def non_blocking_stream_write(self, in_data, frame_count, time_info, status):
         if len(self.smoothed_buffer_right) < (9) or len(self.smoothed_buffer_left) < (9):
-            print("skipping!")
             audio = numpy.zeros((self._processing_size, self.channels), dtype=self.dtype)
             return audio, pyaudio.paContinue
         else:
             chans = []
-            bins = self.smoothed_buffer_left.read(9)
-            chans.append(self.stft_hann.synthesis(bins))
+            bins = self.smoothed_buffer_left.read(9).T
+            chans.append(istft(Sx=bins, window=self.synthesis_window, n_fft=self.fft_len, hop_len=self.hop_size, N=self._processing_size))
 
-            bins = self.smoothed_buffer_right.read(9)
-            chans.append(self.stft_hann.synthesis(bins))
+            bins = self.smoothed_buffer_right.read(9).T
+            chans.append(istft(Sx=bins, window=self.synthesis_window, n_fft=self.fft_len, hop_len=self.hop_size, N=self._processing_size))
             #if we do absolutely nothing here, there's no risk of loosing sync
             #so all we do here is monitor for available audio and send it out
 
@@ -410,21 +426,9 @@ if __name__ == "__main__":
     SS = StreamSampler()
     SS.listen()
 
-
     def close():
-        dpg.destroy_context()
         SS.stop()
         quit()
 
-
-    dpg.create_context()
-
-    dpg.create_viewport(title='Streamclean', height=100, width=400)
-    dpg.setup_dearpygui()
-    dpg.configure_app(auto_device=True)
-
-    dpg.show_viewport()
-    dpg.start_dearpygui()
-    while dpg.is_dearpygui_running():
-        dpg.render_dearpygui_frame()
-    close()  # clean up the program runtime when the user closes the window
+    while SS.micstream.is_active():
+        eval(input("press any key to quit\n"))
