@@ -1,5 +1,8 @@
 print("Attention: this file does not work correctly. I am still debugging it. Please do not run this file unless prompted.")
 exit(0)
+
+
+
 #debugging still in progress
 """
 Copyright 2022 Joshuah Rainstar, Oscar Steila
@@ -223,15 +226,15 @@ class StreamSampler(object):
         self.channels = channels
         self.residue = 0.01
         self.entropy_constant = 0.0074
-        self.mask_buffer_left = RingBuffer(18, 130)
+        self.mask_buffer_left = RingBuffer(36, 130)
 
-        self.stft_buffer_left = RingBuffer(18, 129)  # we need 18 x 129
+        self.stft_buffer_left = RingBuffer(36, 129)  # we need 18 x 129
         #this will write in chunks of 9.
         self.stft_buffer_left.dtype = numpy.complex128
         self.mask_buffer_old_left = numpy.ones((9,130),dtype=numpy.float64)
 
-        self.mask_buffer_right = RingBuffer(18, 130)
-        self.stft_buffer_right = RingBuffer(18, 129)
+        self.mask_buffer_right = RingBuffer(36, 130)
+        self.stft_buffer_right = RingBuffer(36, 129)
         self.stft_buffer_right.dtype = numpy.complex128
         self.mask_buffer_old_right = numpy.ones((9, 130), dtype=numpy.float64)
         self.micindex = micindex
@@ -409,7 +412,7 @@ if __name__ == "__main__":
 
     dpg.create_context()
 
-    dpg.create_viewport(title='Realtime Cleanup', height=100, width=400)
+    dpg.create_viewport(title='Streamclean', height=100, width=400)
     dpg.setup_dearpygui()
     dpg.configure_app(auto_device=True)
 
