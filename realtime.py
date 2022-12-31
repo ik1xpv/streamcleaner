@@ -355,7 +355,7 @@ class StreamSampler(object):
 
         if len (self.mask_buffer_left)> (18) and len(self.mask_buffer_right) > (18):
             mask = self.mask_buffer_left.read_overlap(18, 9)
-            mask_working = numpy.vstack((self.mask_buffer_old_left,mask))
+            mask_working = numpy.vstack((mask,self.mask_buffer_old_left))
             mask_smoothed = smooth_mask(mask_working, self.residue, self.entropy_constant)  # remember smooth_mask also crops
             self.mask_buffer_old_left = mask[0:9,:]
             bins = self.stft_buffer_left.read(9)
@@ -363,7 +363,7 @@ class StreamSampler(object):
             self.smoothed_buffer_left.expanding_write(masked, error=False)
 
             mask = self.mask_buffer_right.read_overlap(18, 9)
-            mask_working = numpy.vstack((self.mask_buffer_old_left, mask))
+            mask_working = numpy.vstack((mask,self.mask_buffer_old_left))
             mask_smoothed = smooth_mask(mask_working, self.residue,
                                     self.entropy_constant)  # remember smooth_mask also crops
             self.mask_buffer_old_left = mask[0:9, :]
