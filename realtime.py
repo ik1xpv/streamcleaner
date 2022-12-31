@@ -1,4 +1,4 @@
-print("Attention: this file does not work. I am still debugging it. Please do not run this file.")
+print("Attention: this file does not work correctly. I am still debugging it. Please do not run this file unless prompted.")
 exit(0)
 #debugging still in progress
 """
