@@ -1,4 +1,5 @@
 print("this is only an experiment and does not reflect the performance of other scripts located in this directory")
+#also this instantly crashes when called with 4096 for some obscene reason
 exit(0)
 '''
 Copyright 2022 Joshuah Rainstar
@@ -25,7 +26,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 '''
 #additional code contributed by Justin Engel
-#asyncio by Tonya Sims 
 #idea and code and bugs by Joshuah Rainstar, Oscar Steila
 #https://groups.io/g/NextGenSDRs/topic/spectral_denoising
 #realtime.py 1.6.23
@@ -165,7 +165,7 @@ def fast_entropy(data: numpy.ndarray,logit):
    entropy = numpy.zeros(data.shape[1])
    for each in range(data.shape[0]):
       d = data[each,:]
-      d = numpy.interp(d, (d[0], d[-1]), (-0, +1))
+      d = numpy.interp(d, (d[0], d[-1]), (0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
@@ -226,7 +226,7 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return stft_vh[32:64,:]* 0
+      return stft_vh[64:128,:]* 0
 
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
@@ -234,12 +234,12 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     criteria_before = 1
     criteria_after = 1
 
-    entropy_before = entropy[0:64]
+    entropy_before = entropy[0:128]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
     if nbins<44 and maxstreak<32:
         criteria_before = 0
-    entropy_after = entropy[32:]
+    entropy_after = entropy[64:]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
     if nbins<44 and maxstreak<32:
@@ -256,7 +256,7 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     
     # an ionosound sweep is also around or better than 24 samples, also
     if criteria_before ==0 and criteria_after == 0:
-      return stft_vh[32:64,:]* 0
+      return stft_vh[64:128,:]* 0
           
     mask=numpy.zeros_like(stft_vh)
     stft_vi = stft_vh[:,0:NBINS].flatten()
@@ -265,7 +265,7 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
      
     
     mask = numpyfilter_wrapper_50(mask)
-    return mask[32:64,:]
+    return mask[64:128,:]
     
 
 
@@ -273,7 +273,7 @@ class FilterThread(Thread):
     def __init__(self,  clearflag):
         super(FilterThread, self).__init__()
         self.running = True
-        self.nframes = 32
+        self.nframes = 64
         self.NFFT = 512
         self.NBINS=32
         self.hop = 64
@@ -282,9 +282,9 @@ class FilterThread(Thread):
         self.hann = generate_hann(self.NFFT)
         self.logistic = generate_logit(self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
-        self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True,num_frames=32)
-        self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True,num_frames=32)
-        self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=True,num_frames=32)
+        self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True,num_frames=self.nframes)
+        self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=False,num_frames=self.nframes)
+        self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=False,num_frames=self.nframes)
         self.true_logistic  = generate_true_logistic(self.NBINS)
 
     def process(self,data,clear_flag:float = 0):        
@@ -297,7 +297,7 @@ class FilterThread(Thread):
            self.past = numpy.zeros_like(self.future)
            self.past_entropy = numpy.zeros_like(self.present_entropy)
            self.future_audio = data.copy()
-           self.present_audio = numpy.zeros(2048)
+           self.present_audio = numpy.zeros(4096)
            self.clearflag = 0
            self.initialized = 1
            self.stft.reset()
@@ -315,7 +315,7 @@ class FilterThread(Thread):
            self.future_audio = data.copy()      
            self.stft.analysis(self.present_audio)
            mask = mask_generation(numpy.vstack((self.past,self.present,self.past)),numpy.hstack((self.past_entropy,self.present_entropy,self.entropy_future)),self.NBINS)
-           output = self.stft.synthesis(self.stft.X)
+           output = self.stft.synthesis(self.stft.X* mask)
            return output
   
     def stop(self):
@@ -325,7 +325,7 @@ class StreamSampler(object):
 
     def __init__(self, sample_rate=48000, channels=2,  micindex=1, speakerindex=1, dtype=numpy.float32):
         self.pa = pyaudio.PyAudio()
-        self.processing_size = 2048
+        self.processing_size = 4096
         self.sample_rate = sample_rate
         self.channels = channels
         self.rightclearflag = 1
@@ -429,7 +429,7 @@ class StreamSampler(object):
         audio_in = numpy.ndarray(buffer=memoryview(in_data), dtype=numpy.float32,
                                             shape=[int(self.processing_size * self.channels)]).reshape(-1,
                                                                                                          self.channels)
-        
+        print("processing!")
         audio_out = audio_in.copy()
         audio_out[:,0] = self.rightthread.process(audio_out[:,0])
         audio_out[:,1] = self.rightthread.process(audio_out[:,1])
