@@ -182,6 +182,21 @@ def generate_true_logistic(points):
     fprint[0] = -fprint[-1]
     return numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
 
+def generate_logit_window(size,sym =True):
+  if sym == False or size<32:
+    print("not supported")
+    return numpy.zeros(size)
+  if size % 2:
+    e = generate_true_logistic((size+1)//2)
+    result = numpy.zeros(size)
+    result[0:(size+1)//2] = e
+    result[(size+1)//2:] = e[0:-1][::-1]
+    return result
+  else:
+    e = generate_true_logistic(size//2)
+    e = numpy.hstack((e,e[::-1]))
+    return e
+
 @numba.njit(numba.float64[:](numba.float64[:,:]),parallel = True)
 def fast_entropy(data: numpy.ndarray):
    logit = numpy.asarray([0.,0.08805782,0.17611565,0.22947444,0.2687223,0.30031973,0.32715222,0.35076669,0.37209427,0.39174363,0.41013892,0.42759189,0.44434291,0.46058588,0.47648444,0.4921833,0.5078167,0.52351556,0.53941412,0.55565709,0.57240811,0.58986108,0.60825637,0.62790573,0.64923331,0.67284778,0.69968027,0.7312777,0.77052556,0.82388435,0.91194218,1.])
