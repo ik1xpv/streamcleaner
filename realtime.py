@@ -1,5 +1,4 @@
 print("this is only an experiment and does not reflect the performance of other scripts located in this directory")
-#also this instantly crashes when called with 4096 for some obscene reason
 exit(0)
 '''
 Copyright 2022 Joshuah Rainstar
@@ -28,8 +27,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #additional code contributed by Justin Engel
 #idea and code and bugs by Joshuah Rainstar, Oscar Steila
 #https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#realtime.py 1.6.23
-
+#realtime.py 
+#works poorly, but it works. 
+#latency is 128 frames out of 750 ~ 170ms latency.
 
 #How to use this file:
 #you will need 1 virtual audio cable- try https://vb-audio.com/Cable/ if you use windows.
@@ -226,7 +226,7 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return stft_vh[64:128,:]* 0
+      return stft_vh[128:256,:]* 0
 
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
@@ -234,12 +234,12 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     criteria_before = 1
     criteria_after = 1
 
-    entropy_before = entropy[0:128]
+    entropy_before = entropy[0:256]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
     if nbins<44 and maxstreak<32:
         criteria_before = 0
-    entropy_after = entropy[64:]
+    entropy_after = entropy[128:]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
     if nbins<44 and maxstreak<32:
@@ -256,7 +256,7 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     
     # an ionosound sweep is also around or better than 24 samples, also
     if criteria_before ==0 and criteria_after == 0:
-      return stft_vh[64:128,:]* 0
+      return stft_vh[128:256,:]* 0
           
     mask=numpy.zeros_like(stft_vh)
     stft_vi = stft_vh[:,0:NBINS].flatten()
@@ -265,7 +265,7 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
      
     
     mask = numpyfilter_wrapper_50(mask)
-    return mask[64:128,:]
+    return mask[128:256,:]
     
 
 
@@ -273,7 +273,7 @@ class FilterThread(Thread):
     def __init__(self,  clearflag):
         super(FilterThread, self).__init__()
         self.running = True
-        self.nframes = 64
+        self.nframes = 128
         self.NFFT = 512
         self.NBINS=32
         self.hop = 64
@@ -297,7 +297,7 @@ class FilterThread(Thread):
            self.past = numpy.zeros_like(self.future)
            self.past_entropy = numpy.zeros_like(self.present_entropy)
            self.future_audio = data.copy()
-           self.present_audio = numpy.zeros(4096)
+           self.present_audio = numpy.zeros(8192)
            self.clearflag = 0
            self.initialized = 1
            self.stft.reset()
@@ -314,7 +314,7 @@ class FilterThread(Thread):
            self.present_audio = self.future_audio.copy()
            self.future_audio = data.copy()      
            self.stft.analysis(self.present_audio)
-           mask = mask_generation(numpy.vstack((self.past,self.present,self.past)),numpy.hstack((self.past_entropy,self.present_entropy,self.entropy_future)),self.NBINS)
+           mask = mask_generation(numpy.vstack((self.past,self.present,self.future)),numpy.hstack((self.past_entropy,self.present_entropy,self.entropy_future)),self.NBINS)
            output = self.stft.synthesis(self.stft.X* mask)
            return output
   
@@ -325,7 +325,7 @@ class StreamSampler(object):
 
     def __init__(self, sample_rate=48000, channels=2,  micindex=1, speakerindex=1, dtype=numpy.float32):
         self.pa = pyaudio.PyAudio()
-        self.processing_size = 4096
+        self.processing_size = 8192
         self.sample_rate = sample_rate
         self.channels = channels
         self.rightclearflag = 1
@@ -429,11 +429,12 @@ class StreamSampler(object):
         audio_in = numpy.ndarray(buffer=memoryview(in_data), dtype=numpy.float32,
                                             shape=[int(self.processing_size * self.channels)]).reshape(-1,
                                                                                                          self.channels)
-        print("processing!")
-        audio_out = audio_in.copy()
-        audio_out[:,0] = self.rightthread.process(audio_out[:,0])
-        audio_out[:,1] = self.rightthread.process(audio_out[:,1])
-        self.speakerstream.write(numpy.column_stack(audio_out).astype(numpy.float32).tobytes())
+
+        chans = []
+        chans.append(self.rightthread.process(audio_in[:,0]))
+        chans.append(self.leftthread.process(audio_in[:,1]))
+
+        self.speakerstream.write(numpy.column_stack(chans).astype(numpy.float32).tobytes())
         return None, pyaudio.paContinue
 
 
