@@ -175,15 +175,14 @@ def denoise(data: numpy.ndarray):
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074
-
-    stft_logit = stft(x=data,window=logit_window,n_fft=512,hop_len=128)
+    NBINS = 32
+    
+    stft_logit = stft(x=data,window=logit_window,n_fft=512,hop_len=128)[0:NBINS]
     stft_vl =  numpy.abs(stft_logit) #returns the same as other methods
     stft_hann = stft(x=data,window=hann,n_fft=512,hop_len=128) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
 
-    stft_vl  = stft_vl[0:32,:] #obtain the desired bins
     stft_vl = numpy.sort(stft_vl,axis=0) #sort the array
-
     entropy_unmasked = fast_entropy(stft_vl)
     entropy = smoothpadded(entropy_unmasked)
     factor = numpy.max(entropy)
@@ -211,7 +210,7 @@ def denoise(data: numpy.ndarray):
           
     mask=numpy.zeros_like(stft_vh)
     thresh = threshold(stft_vh[stft_vh>man(stft_vl.flatten())])
-    mask[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
+    mask[0:NBINS,:] = fast_peaks(stft_vh[0:NBINS,:],entropy,thresh,entropy_unmasked)
      
     
     mask = numpyfilter_wrapper_50(mask)
