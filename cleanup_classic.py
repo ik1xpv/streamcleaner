@@ -174,50 +174,17 @@ def smoothpadded(data: numpy.ndarray):
 def threshold(data: numpy.ndarray):
  return numpy.sqrt(numpy.nanmean(numpy.square(numpy.abs(data -numpy.nanmedian(numpy.abs(data - numpy.nanmedian(data[numpy.nonzero(data)]))))))) + numpy.nanmedian(data[numpy.nonzero(data)])
 
-@numba.jit()
-def scale(pow):
-    result = 0
-    for each in range(1,pow):
-        result = result + (9* numpy.power(10,each))
-    result = result + 9
-    return result
-    #an absurd challenge to solve: generating 9,99,999,999 etc without using string!
-    
-@numba.njit()
-def generate_reasonable_logistic(points):
-  fprint = numpy.linspace(0.0,1.0,points)
-  fprint [1:-1] /= 1 - fprint[1:-1]
-  fprint [1:-1] = numpy.log(fprint[1:-1])
-  endpoint = 0.0
-  counter = 0
-  endpoint = numpy.log(scale(counter))
-  lookup = [2.1971892581166510,4.5955363239333611,6.9050175677146246,9.2135681041095818,11.5105362150512871,13.8139732623858311,16.1212093471596063,18.4212471940583633,20.7199292066937240,23.0260708890764363,25.3318791223971402,27.6293850468557025,29.9308315624775787,32.2405437938828072,34.5359179427814524,36.8424085116093920,39.1437375251989579,41.4465512066672090,53.5009414419764653,166.1841396146919578,874.5562803894281387,4211.3929192572832108,17116.3403342720121145,60318.5852559730410576,189696.3978051021695137,543994.4244986772537231,1445156.3948460221290588,3598799.5093398690223694,8477663.0022574663162231,19027737.8391044139862061,40926016.8621466159820557,84755565.9826140403747559,169668882.8905963897705078,329412845.1023845672607422,622026323.3318710327148438,1145145647.3590965270996094,2059730309.2295989990234375,3626238193.6844787597656250,6258947560.4355010986328125,10606383754.8501892089843750,17668841282.3623657226562500,28968020901.3501586914062500,46789106044.4216308593750000,74522528302.5477294921875000,117141641713.1768798828125000,181864057501.9619140625000000,279059112640.5244140625000000,423482615174.2539062500000000,635943537379.3251953125000000,945536803119.7412109375000000]
-  endpoint = lookup[0]
-  while endpoint < fprint[-2]:
-    counter = counter + 1
-    endpoint = lookup[counter]
-    if endpoint >= fprint[-2]:
-      break
+def generate_true_logistic(points):
+    fprint = numpy.linspace(0.0,1.0,points)
+    fprint[1:-1]  /= 1 - fprint[1:-1]
+    fprint[1:-1]  = numpy.log(fprint[1:-1])
+    fprint[-1] = ((2*fprint[-2])  - fprint[-3]) 
+    fprint[0] = -fprint[-1]
+    return numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
 
-  fprint[-1] = lookup[counter+1]
-  fprint[0] = -fprint[-1]
-  fprint = numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
-  return fprint
-
-
-
-@numba.jit()
+@numba.njit(numba.float64[:](numba.float64[:,:]),parallel = True)
 def fast_entropy(data: numpy.ndarray):
-   logit = numpy.asarray([0.,0.25371552,0.30636192,0.3382631,0.3617279,0.3806188,0.39666092,0.41077911,0.42353005,0.43527765,0.44627549,0.45670996,0.46672475,0.4764358,0.48594095,0.49532669,0.50467331,0.51405905,0.5235642,0.53327525,0.54329004,0.55372451,0.56472235,0.57646995,0.58922089,0.60333908,0.6193812,0.6382721,0.6617369,0.69363808,0.74628448,1.])
-     #predefining the logit distribution saves some cycles.
-    #to generate your logistic(real) function, here's what you need to do:
-    #fprint = numpy.linspace(0, 1, points) generate the number of points you need, equispaced 0 to 1 inclusive.
-    #fprint[1:-1]  /= 1 - fprint [1:-1] #all but first and last, divide by 1 - the value.
-    #fprint[1:-1]  = numpy.log(fprint[1:-1]) #all but the first and last, log(value).
-    #fprint[0] = -4.59511985013459
-    #fprint[-1] = 4.59511985013459 using log(9.0), log(99.0), log(999.0), add 9's until you find the next higher value then the next after the value which is higher than the last value in your array.
-    # fill the first with the negative of this, and the last with the positive. Now, you're done. You've found the constraint.
-    #however, for very large arrays this constraint will no longer hold in a reasonable manner, because log will exceed math boundaries, and you'll need a polynomial solver.
+   logit = numpy.asarray([0.,0.08805782,0.17611565,0.22947444,0.2687223,0.30031973,0.32715222,0.35076669,0.37209427,0.39174363,0.41013892,0.42759189,0.44434291,0.46058588,0.47648444,0.4921833,0.5078167,0.52351556,0.53941412,0.55565709,0.57240811,0.58986108,0.60825637,0.62790573,0.64923331,0.67284778,0.69968027,0.7312777,0.77052556,0.82388435,0.91194218,1.])
    entropy = numpy.zeros(data.shape[1])
    for each in numba.prange(data.shape[1]):
       d = data[:,each]
@@ -250,23 +217,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
     return mask
 
 
-@numba.njit()
-def generate_reasonable_logistic(points):
-  fprint = numpy.linspace(0,1,points)
-  fprint [1:-1] /= 1 - fprint[1:-1]
-  fprint [1:-1] = numpy.log(fprint[1:-1])
-  endpoint = 0.0
-  counter = 1
-  endpoint =numpy.log(scale(counter))
-  while endpoint < fprint[-2]:
-    counter = counter + 1
-    endpoint = numpy.log(scale(counter))
 
-  fprint[-1] = endpoint
-  fprint[0] = -fprint[-1]
-  fprint = numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
-  return fprint
-  #this function generates a *reasonable* logistic sequence of the desired size.
 
 @numba.jit()
 def threshhold(arr):
