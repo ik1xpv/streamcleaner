@@ -227,7 +227,7 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
-        def process_data(data: numpy.ndarray):
+def process_data(data: numpy.ndarray):
     print("processing ", data.size / rate, " seconds long file at ", rate, " rate.")
     start = time.time()
     stft = pra.transform.STFT(512, hop=128, analysis_window=hann,synthesis_window=inversehann,online=True)
