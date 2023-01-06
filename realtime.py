@@ -162,7 +162,7 @@ def generate_logit(size,sym =True):
 
 @numba.njit()
 def fast_entropy(data: numpy.ndarray,logit):
-   entropy = numpy.zeros(data.shape[1])
+   entropy = numpy.zeros(data.shape[0])
    for each in range(data.shape[0]):
       d = data[each,:]
       d = numpy.interp(d, (d[0], d[-1]), (0, +1))
