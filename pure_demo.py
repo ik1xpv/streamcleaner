@@ -2,8 +2,9 @@ import os
 import numba
 import numpy
 
-from ssqueezepy import stft,istft
-
+from ssqueezepy import stft
+import pyroomacoustics as pra
+import time
 
 
 #@numba.jit()
@@ -16,13 +17,13 @@ from ssqueezepy import stft,istft
 #        return w
 
 #@numba.jit()
-def generate_hann(M, sym=True):
-    a = [0.5, 0.5]
-    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
-    w = numpy.zeros(M)
-    for k in range(len(a)):
-        w += a[k] * numpy.cos(k * fac)
-    return w
+#def generate_hann(M, sym=True):
+#    a = [0.5, 0.5]
+#    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
+#    w = numpy.zeros(M)
+#    for k in range(len(a)):
+#        w += a[k] * numpy.cos(k * fac)
+#    return w
 
 @numba.jit()
 def man(arr):
@@ -232,8 +233,6 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
-import pyroomacoustics as pra
-import time
 def process_data(data: numpy.ndarray):
     print("processing ", data.size / rate, " seconds long file at ", rate, " rate.")
     start = time.time()
