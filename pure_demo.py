@@ -1,9 +1,10 @@
 import os
 import numba
 import numpy
-import time
-import pyroomacoustics as pra
-from ssqueezepy import stft #for better analysis
+
+from ssqueezepy import stft,istft
+
+
 
 #@numba.jit()
 #def boxcar(M, sym=True):
@@ -15,13 +16,13 @@ from ssqueezepy import stft #for better analysis
 #        return w
 
 #@numba.jit()
-#def hann(M, sym=True):
-#    a = [0.5, 0.5]
-#    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
-#    w = numpy.zeros(M)
-#    for k in range(len(a)):
-#        w += a[k] * numpy.cos(k * fac)
-#    return w
+def generate_hann(M, sym=True):
+    a = [0.5, 0.5]
+    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
+    w = numpy.zeros(M)
+    for k in range(len(a)):
+        w += a[k] * numpy.cos(k * fac)
+    return w
 
 @numba.jit()
 def man(arr):
@@ -32,6 +33,10 @@ def man(arr):
 def atd(arr):
     x = numpy.square(numpy.abs(arr - man(arr)))
     return numpy.sqrt(numpy.nanmean(x))
+
+#@numba.jit()
+#def threshhold(arr):
+#  return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
 
 def runningMeanFast(x, N):
     return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
@@ -97,7 +102,7 @@ def generate_logit(size,sym =True):
     return result
   else:
     e = generate_true_logistic(size//2)
-    e = numpy.hstack(e,e[::-1])
+    e = numpy.hstack((e,e[::-1]))
     return e
 
 
@@ -175,14 +180,15 @@ def denoise(data: numpy.ndarray):
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array   
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074
-    NBINS = 32
-    
-    stft_logit = stft(x=data,window=logit_window,n_fft=512,hop_len=128)[0:NBINS]
+
+    stft_logit = stft(x=data,window=logit_window,n_fft=512,hop_len=64)
     stft_vl =  numpy.abs(stft_logit) #returns the same as other methods
-    stft_hann = stft(x=data,window=hann,n_fft=512,hop_len=128) #get complex representation
+    stft_hann = stft(x=data,window=hann,n_fft=512,hop_len=64) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
 
+    stft_vl  = stft_vl[0:32,:] #obtain the desired bins
     stft_vl = numpy.sort(stft_vl,axis=0) #sort the array
+
     entropy_unmasked = fast_entropy(stft_vl)
     entropy = smoothpadded(entropy_unmasked)
     factor = numpy.max(entropy)
@@ -205,12 +211,12 @@ def denoise(data: numpy.ndarray):
     #then we can consider the frame to consist of speech
     
     # an ionosound sweep is also around or better than 24 samples, also
-    if nbins<22 and maxstreak<16:
+    if nbins<44 and maxstreak<32:
       return stft_vh.T * 0
           
     mask=numpy.zeros_like(stft_vh)
     thresh = threshold(stft_vh[stft_vh>man(stft_vl.flatten())])
-    mask[0:NBINS,:] = fast_peaks(stft_vh[0:NBINS,:],entropy,thresh,entropy_unmasked)
+    mask[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
      
     
     mask = numpyfilter_wrapper_50(mask)
@@ -226,10 +232,14 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
+import pyroomacoustics as pra
+import time
 def process_data(data: numpy.ndarray):
     print("processing ", data.size / rate, " seconds long file at ", rate, " rate.")
     start = time.time()
-    stft = pra.transform.STFT(512, hop=128, analysis_window=hann,synthesis_window=inversehann,online=True)
+    window = pra.hann(512, flag='asymmetric', length='full') 
+    stft = pra.transform.STFT(512, hop=64, analysis_window=hann,synthesis_window=pra.transform.stft.compute_synthesis_window(hann, 64)
+,online=True)
     processed = []
     for each in chunks(data, rate):
         if each.size == rate:
