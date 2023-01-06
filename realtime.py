@@ -25,9 +25,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 '''
 #additional code contributed by Justin Engel
-#idea and code  by Joshuah Rainstar, Oscar Steila
+#asyncio by Tonya Sims 
+#idea and code and bugs by Joshuah Rainstar, Oscar Steila
 #https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#realtime cleanup.py ~40ms latency
+#realtime.py 1.6.23
 
 
 #How to use this file:
@@ -40,7 +41,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
 #conda install pip numpy scipy
-#pip install ssqueezepy pipwin dearpygui pyroomacoustics 
+#pip install pipwin dearpygui pyroomacoustics
 #pipwin install pyaudio
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
 #step four: set the output for your SDR software to the input for the cable device.
@@ -55,17 +56,19 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #further recommendations:
 #I recommend the use of a notch filter to reduce false positives and carrier signals disrupting the entropy filter.
-#Please put other denoising methods besides the notch filter *after* this method.
+#Please put other denoising methods except for the notch filter *after* this method.
 
+import os
 import numba
 import numpy
 
 import pyroomacoustics as pra
-from ssqueezepy import stft as sstft
+from threading import Thread
 
 import pyaudio
 import dearpygui.dearpygui as dpg
-from threading import Thread
+os.environ['SSQ_PARALLEL'] = '0'
+
 
 
 def generate_hann(M, sym=True):
@@ -157,26 +160,24 @@ def generate_logit(size,sym =True):
     e = numpy.hstack((e,e[::-1]))
     return e
 
-@numba.njit(numba.float64[:](numba.float64[:,:]),parallel = True)
-def fast_entropy(data: numpy.ndarray):
-   logit = numpy.asarray([0.,0.08805782,0.17611565,0.22947444,0.2687223,0.30031973,0.32715222,0.35076669,0.37209427,0.39174363,0.41013892,0.42759189,0.44434291,0.46058588,0.47648444,0.4921833,0.5078167,0.52351556,0.53941412,0.55565709,0.57240811,0.58986108,0.60825637,0.62790573,0.64923331,0.67284778,0.69968027,0.7312777,0.77052556,0.82388435,0.91194218,1.])
+@numba.njit()
+def fast_entropy(data: numpy.ndarray,logit):
    entropy = numpy.zeros(data.shape[1])
-   for each in numba.prange(data.shape[1]):
-      d = data[:,each]
+   for each in range(data.shape[0]):
+      d = data[each,:]
       d = numpy.interp(d, (d[0], d[-1]), (-0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
 
 @numba.jit()
-def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray):
+def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray,NBINS):
     #0.01811 practical lowest
     #0.595844362 practical highest
     mask = numpy.zeros_like(stft_)
-    for each in numba.prange(stft_.shape[1]):
-        data = stft_[:,each]
+    for each in range(stft_.shape[0]):
+        data = stft_[each,:]
         if entropy[each] == 0:
-            mask[0:32,each] =  0
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
         test = entropy_unmasked[each]  / 0.595844362
@@ -187,7 +188,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         constant = (thresh1+constant)/2
         data[data<constant] = 0
         data[data>0] = 1
-        mask[0:32,each] = data[:]
+        mask[each,0:NBINS] = data[0:NBINS]
     return mask
 
 
@@ -208,7 +209,7 @@ def longestConsecutive(nums):
             streak = 0
         return max(streak,prevstreak)
 
-def mask_generation(stft_vh,entropy_unmasked):
+def mask_generation(stft_vh,entropy_unmasked,NBINS):
 
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
@@ -216,20 +217,19 @@ def mask_generation(stft_vh,entropy_unmasked):
     #however, practically speaking, voice frequency cuts off just above 3400hz.
     #*most* SSB channels are constrained far below this.
     #to catch most voice activity on shortwave, we use the first 32 bins, or 3000hz.
+    #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
- 
+
     lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074
 
     entropy = smoothpadded(entropy_unmasked)
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return stft_vh.T * 0
+      return stft_vh[32:64,:]* 0
 
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
-    nbins = numpy.sum(entropy)
-    maxstreak = longestConsecutive(entropy)
 
     criteria_before = 1
     criteria_after = 1
@@ -256,12 +256,12 @@ def mask_generation(stft_vh,entropy_unmasked):
     
     # an ionosound sweep is also around or better than 24 samples, also
     if criteria_before ==0 and criteria_after == 0:
-      return stft_vh.T * 0
+      return stft_vh[32:64,:]* 0
           
     mask=numpy.zeros_like(stft_vh)
-    stft_vh = stft_vh[0:32]
-    thresh = threshold(stft_vh[stft_vh>man(stft_vh.flatten())])
-    mask[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
+    stft_vi = stft_vh[:,0:NBINS].flatten()
+    thresh = threshold(stft_vi[stft_vi>man(stft_vi)]) #unknown if this is best
+    mask[:] = fast_peaks(stft_vh,entropy,thresh,entropy_unmasked,NBINS)
      
     
     mask = numpyfilter_wrapper_50(mask)
@@ -283,45 +283,45 @@ class FilterThread(Thread):
         self.logistic = generate_logit(self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True,num_frames=32)
+        self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True,num_frames=32)
+        self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=True,num_frames=32)
+        self.true_logistic  = generate_true_logistic(self.NBINS)
 
-    def process(self,work,clear_flag:float = 0):        
+    def process(self,data,clear_flag:float = 0):        
         if clear_flag == 1 or self.initialized ==0:
-           data = work.astype(dtype=numpy.float64))
-           self.future = numpy.abs(sstft(x=data ,window=self.hann,n_fft=self.NFFT,hop_len=self.hop))
-           logit = numpy.abs(sstft(x=data ,window=self.logistic ,n_fft=self.NFFT,hop_len=self.hop))
-           self.entropy_future = fast_entropy(numpy.sort(logit[0:self.NBINS,:],axis=0))
+           self.future = numpy.abs(self.oneshot_hann.analysis(data))
+           logit = numpy.abs(self.oneshot_logit.analysis(data))
+           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1),self.true_logistic)
            self.present = numpy.zeros_like(self.future)
            self.present_entropy = numpy.zeros_like(self.entropy_future)
            self.past = numpy.zeros_like(self.future)
            self.past_entropy = numpy.zeros_like(self.present_entropy)
-           self.future_audio = self.buffer.copy()
+           self.future_audio = data.copy()
            self.present_audio = numpy.zeros(2048)
            self.clearflag = 0
            self.initialized = 1
            self.stft.reset()
-           return work
+           return data
 
         else:
-           data = work.astype(dtype=numpy.float64)
            self.past = self.present.copy()
            self.past_entropy = self.present_entropy.copy()
            self.present = self.future.copy()
-           self.present_entropy = self.future_entropy.copy()
-           self.future = numpy.abs(sstft(x=data,window=self.hann,n_fft=self.NFFT,hop_len=self.hop))
-           logit = numpy.abs(stft(x=data,window=self.logistic ,n_fft=self.NFFT,hop_len=self.hop))
-           self.entropy_future = fast_entropy(numpy.sort(logit[0:self.NBINS,:],axis=0))     
+           self.present_entropy = self.entropy_future.copy()
+           self.future = numpy.abs(self.oneshot_hann.analysis(data))
+           logit = numpy.abs(self.oneshot_logit.analysis(data))
+           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1),self.true_logistic)     
            self.present_audio = self.future_audio.copy()
-           self.future_audio = self.buffer.copy()      
-           x = self.stft.analysis(self.present_audio)
-           mask = mask_generation(numpy.vstack((self.past,self.present,self.future)),numpy.hstack((self.entropy_past,self.entropy_present,self.entropy_future)))
-           return stft.synthesis(stft.X * mask)
+           self.future_audio = data.copy()      
+           self.stft.analysis(self.present_audio)
+           mask = mask_generation(numpy.vstack((self.past,self.present,self.past)),numpy.hstack((self.past_entropy,self.present_entropy,self.entropy_future)),self.NBINS)
+           output = self.stft.synthesis(self.stft.X)
+           return output
   
     def stop(self):
         self.running = False 
 
-
 class StreamSampler(object):
-
 
     def __init__(self, sample_rate=48000, channels=2,  micindex=1, speakerindex=1, dtype=numpy.float32):
         self.pa = pyaudio.PyAudio()
@@ -332,15 +332,14 @@ class StreamSampler(object):
         self.leftclearflag = 1
         self.rightthread = FilterThread(self.rightclearflag)
         self.leftthread = FilterThread(self.leftclearflag)
-        #call self.channelthread.process(2048 samples at a time)
         self.micindex = micindex
         self.speakerindex = speakerindex
         self.micstream = None
         self.speakerstream = None
         self.speakerdevice = ""
         self.micdevice = ""
-
-
+     
+    
 
     def _update_streams(self):
         """Call if sample rate, channels, dtype, or something about the stream changes."""
@@ -422,7 +421,6 @@ class StreamSampler(object):
                               output=True,
                               output_device_index=self.speakerindex,
                               frames_per_buffer=int(self.processing_size),
-                              stream_callback=self.non_blocking_stream_write,
                               start=False  # Need start to be False if you don't want this to start right away
                               )
         return stream
@@ -431,25 +429,13 @@ class StreamSampler(object):
         audio_in = numpy.ndarray(buffer=memoryview(in_data), dtype=numpy.float32,
                                             shape=[int(self.processing_size * self.channels)]).reshape(-1,
                                                                                                          self.channels)
-        audio = audio_in.copy()
-        #send to queue for processing
-
-        output = numpy.column_stack((self.leftbuffer,self.rightbuffer)).astype(numpy.float32).tobytes()
-        self.speakerstream(self.speakerstream.write(data))
+        
+        audio_out = audio_in.copy()
+        audio_out[:,0] = self.rightthread.process(audio_out[:,0])
+        audio_out[:,1] = self.rightthread.process(audio_out[:,1])
+        self.speakerstream.write(numpy.column_stack(audio_out).astype(numpy.float32).tobytes())
         return None, pyaudio.paContinue
 
-    def non_blocking_stream_write(self, in_data, frame_count, time_info, status):
-        # Read raw data            
-        if true: #if there is no data
-            print('Not enough data to play! Increase the buffer_delay')
-            # uncomment this for debug
-            audio = numpy.zeros((self._processing_size, self.channels), dtype=self.dtype)
-            return audio, pyaudio.paContinue
-        else:
-         
-        chans = #data from the queue
-
-        return numpy.column_stack(chans).astype(self.dtype).tobytes(), pyaudio.paContinue
 
     def stream_start(self):
         self.rightthread.start()
@@ -457,7 +443,6 @@ class StreamSampler(object):
         if self.micstream is None:
             self.micstream = self.open_mic_stream()
         self.micstream.start_stream()
-
         if self.speakerstream is None:
             self.speakerstream = self.open_speaker_stream()
         self.speakerstream.start_stream()
