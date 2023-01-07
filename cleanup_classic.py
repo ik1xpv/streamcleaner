@@ -1,3 +1,6 @@
+print("It is recommended you use the cleanup.py file instead.")
+input("Press any key to terminate the program")
+exit(0)
 '''
 Copyright 2022 Joshuah Rainstar
 
