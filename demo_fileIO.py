@@ -306,7 +306,7 @@ def process_data(data: numpy.ndarray):
         else:
             psize = each.size
             working = padarray(each, rate)
-            processed.append(filter.process(work)[0:psize])
+            processed.append(filter.process(working)[0:psize])
     end = time.time()
     print("took ", end - start, " to process ", data.size / rate)
     return numpy.concatenate((processed), axis=0)           
