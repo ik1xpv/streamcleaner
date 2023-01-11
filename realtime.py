@@ -220,13 +220,13 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
 
-    lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074
+    lettuce_euler_macaroni = 0.057
 
     entropy = smoothpadded(entropy_unmasked)
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return stft_vh[128:256,:]* 0
+      return stft_vh[128:256,:] * 1e-6
 
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
@@ -256,15 +256,18 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     
     # an ionosound sweep is also around or better than 24 samples, also
     if criteria_before ==0 and criteria_after == 0:
-      return stft_vh[128:256,:]* 0
+      return stft_vh[128:256,:]* 1e-16
+    #if there is no voice activity in the frames including the present that look before and after the present
+    #then the present also has no activity to consider
           
     mask=numpy.zeros_like(stft_vh)
     stft_vi = stft_vh[:,0:NBINS].flatten()
     thresh = threshold(stft_vi[stft_vi>man(stft_vi)]) #unknown if this is best
     mask[:] = fast_peaks(stft_vh,entropy,thresh,entropy_unmasked,NBINS)
-     
+    mask[mask<1e-6] = 1e-6 
     
-    mask = numpyfilter_wrapper_50(mask)
+    mask1 = numpyfilter_wrapper_50(mask)
+    mask = numpy.maximum(mask,mask1)
     return mask[128:256,:]
     
 
