@@ -247,7 +247,7 @@ def mask_generate(data: numpy.ndarray):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array if it is incorrect
-    lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074
+    lettuce_euler_macaroni = 0.058 #was grossman constant but that was arbitrarily chosen
 
     stft_logit = sstft(x=data,window=logit_window,n_fft=512,hop_len=64)
     stft_vl =  numpy.abs(stft_logit) #returns the same as other methods
@@ -282,7 +282,7 @@ def mask_generate(data: numpy.ndarray):
     # for hop size = 128, nbins = 22, maxstreak = 16
     #if hop size 256 was chosen, nbins would be 11 and maxstreak would be 11.
     #however, fs/hop = maximum alias-free frequency. For hop size of 64, it's over 300hz.
-    if nbins<44 and maxstreak<32:
+    if nbins<42 and maxstreak<30: #42 and 30 seem just as resilient
       return stft_vh.T * 1e-6
           
     mask=numpy.zeros_like(stft_vh)
@@ -292,7 +292,7 @@ def mask_generate(data: numpy.ndarray):
     
     mask1 = numpyfilter_wrapper_50(mask)
     mask = numpy.maximum(mask,mask1)#preserve peaks, flood-fill valley
-    mask[mask==0] = 1e-6 #fill the residual with a small value large enough to reduce music
+    mask[mask<1e-6] = 1e-6 #fill the residual with a small value large enough to reduce music
     return mask.T
 
 
