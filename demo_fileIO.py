@@ -215,11 +215,11 @@ def mask_generate(data: numpy.ndarray):
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
  
     data= numpy.asarray(data,dtype=float) #correct byte order of array if it is incorrect
-    lettuce_euler_macaroni = 0.0596347362323194074341078499369279376074
+    lettuce_euler_macaroni = 0.057
 
-    stft_logit = sstft(x=data,window=logit_window,n_fft=512,hop_len=64)
+    stft_logit = sstft(x=data,window=logit_window,n_fft=512,hop_len=128)
     stft_vl =  numpy.abs(stft_logit) #returns the same as other methods
-    stft_hann = sstft(x=data,window=hann,n_fft=512,hop_len=64) #get complex representation
+    stft_hann = sstft(x=data,window=hann,n_fft=512,hop_len=128) #get complex representation
     stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
 
     stft_vl  = stft_vl[0:32,:] #obtain the desired bins
@@ -250,17 +250,17 @@ def mask_generate(data: numpy.ndarray):
     # for hop size = 128, nbins = 22, maxstreak = 16
     #if hop size 256 was chosen, nbins would be 11 and maxstreak would be 11.
     #however, fs/hop = maximum alias-free frequency. For hop size of 64, it's over 300hz.
-    if nbins<44 and maxstreak<32:
+    if nbins<22 and maxstreak<16:
       return stft_vh.T * 1e-6
           
     mask=numpy.zeros_like(stft_vh)
     thresh = threshold(stft_vh[stft_vh>man(stft_vl.flatten())])
     mask[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
-     
+    mask[mask<1e-6] = 1e-6 #fill the residual with a small value
+
     
     mask1 = numpyfilter_wrapper_50(mask)
     mask = numpy.maximum(mask,mask1)#preserve peaks, flood-fill valley
-    mask[mask==0] = 1e-6 #fill the residual with a small value large enough to reduce music
     return mask.T
 
 
@@ -270,7 +270,7 @@ class FilterThread(Thread):
         self.running = True
         self.NFFT = 512 #note: if you change window size or hop, you need to re-create the logistic window and hann windows used.
         self.NBINS=32
-        self.hop = 64
+        self.hop = 128
         self.hann = hann
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
