@@ -180,7 +180,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
     #sorting, interpolating, and comparing it. 
     mask = numpy.zeros_like(stft_)
     for each in numba.prange(stft_.shape[1]):
-        data = stft_[:,each]
+        data = stft_[:,each].copy() #otherwise it will write to the original array.. not good!
         if entropy[each] == 0:
             mask[0:32,each] =  0
             continue #skip the calculations for this row, it's masked already
@@ -222,8 +222,8 @@ logit_window = numpy.asarray([0.,0.05590667,0.11181333,0.14464919,0.16804013,0.1
 #D. Griffin and J. Lim, Signal estimation from modified short-time Fourier transform, IEEE Trans. Acoustics, Speech, and Signal Process., vol. 32, no. 2, pp. 236-243, 1984.
 #optimal synthesis window generated with pyroomacoustics using pyroomacoustics.transform.stft.compute_synthesis_window(stftwindow, hop)
 
-def mask_generate(data: numpy.ndarray):
 
+def mask_generate(stft_vh: numpy.ndarray,stft_vl: numpy.ndarray):
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
     #https://en.wikipedia.org/wiki/Voice_frequency
@@ -232,19 +232,10 @@ def mask_generate(data: numpy.ndarray):
     #to catch most voice activity on shortwave, we use the first 32 bins, or 3000hz.
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
- 
-    data= numpy.asarray(data,dtype=float) #correct byte order of array if it is incorrect
-    lettuce_euler_macaroni = 0.057 #was grossman constant but that was arbitrarily chosen
-
-    stft_logit = sstft(x=data,window=logit_window,n_fft=512,hop_len=128)
-    stft_vl =  numpy.abs(stft_logit) #returns the same as other methods
-    stft_hann = sstft(x=data,window=hann,n_fft=512,hop_len=128) #get complex representation
-    stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
-
-    stft_vl  = stft_vl[0:32,:] #obtain the desired bins
-    stft_vl = numpy.sort(stft_vl,axis=0) #sort the array
+    lettuce_euler_macaroni = 0.058
+    stft_vs = numpy.sort(stft_vl[0:32,:],axis=0) #sort the array
     
-    entropy_unmasked = fast_entropy(stft_vl)
+    entropy_unmasked = fast_entropy(stft_vs)
     entropy = smoothpadded(entropy_unmasked,14)
     factor = numpy.max(entropy)
 
@@ -269,26 +260,22 @@ def mask_generate(data: numpy.ndarray):
     # for hop size = 128, nbins = 22, maxstreak = 16
     #if hop size 256 was chosen, nbins would be 11 and maxstreak would be 11.
     #however, fs/hop = maximum alias-free frequency. For hop size of 64, it's over 300hz.
-    if nbins<22 and maxstreak<16: #42 and 30 seem just as resilient
+    if nbins<22 and maxstreak<16:
       return stft_vh.T * 1e-6
           
     mask1=numpy.zeros_like(stft_vh)
-    thresh = threshold(stft_vh[stft_vh>man(stft_vl.flatten())])
+    mask2=numpy.zeros_like(stft_vh)
+
+    stft_vh1 = stft_vh[0:32,:]
+    thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:32,:].flatten())])/2
 
     mask1[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
-    mask1[mask1<1e-6] = 1e-6 #set the residual value to the largest "small" value
-    mask1 = numpyfilter_wrapper_50_n(mask1,3,30)
+    mask1 = numpyfilter_wrapper_50_n(mask1,3,20)
 
-    mask2=numpy.zeros_like(stft_vh)
-    stft_vl =  numpyfilter_wrapper_50_n(stft_vl,14,7)
-    thresh = threshold(stft_vh[stft_vh>man(stft_vl.flatten())])
     stft_vh =  numpyfilter_wrapper_50_n(stft_vh,14,7)
-
     mask2[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
-    mask2[mask2<1e-6] = 1e-6 #set the residual value to the largest "small" value
-    mask2 = numpyfilter_wrapper_50_n(mask2,3,3)
-    mask = (mask1 + mask2)/2
-    
+
+    mask = (mask1 +  mask2)/2
     return mask.T
 
 
@@ -299,16 +286,20 @@ class FilterThread(Thread):
         self.NFFT = 512 #note: if you change window size or hop, you need to re-create the logistic window and hann windows used.
         self.NBINS=32
         self.hop = 128
-        self.hann = hann
+        self.hann = generate_hann(512)
+        self.logit = generate_logit_window(512)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
+        self.stftl = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.logit,synthesis_window=self.synthesis ,online=True)
 
-    def process(self,data):        
-           self.stft.analysis(data)
-           mask = mask_generate(data)
-           output = self.stft.synthesis(self.stft.X* mask)
+        self.residual = 0
+
+    def process(self,data):         
+           self.stft.analysis(data) #generate our complex representation
+           self.stftl.analysis(data) #generate our complex representation
+           mask = mask_generate(numpy.abs(self.stft.X.T),numpy.abs(self.stftl.X.T))
+           output = self.stft.synthesis(X=self.stft.X* mask)
            return output
-  
     def stop(self):
         self.running = False 
 
