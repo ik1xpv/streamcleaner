@@ -99,43 +99,30 @@ def atd(arr):
 def threshold(data: numpy.ndarray):
  return numpy.sqrt(numpy.nanmean(numpy.square(numpy.abs(data -numpy.nanmedian(numpy.abs(data - numpy.nanmedian(data[numpy.nonzero(data)]))))))) + numpy.nanmedian(data[numpy.nonzero(data)])
 
-def runningMeanFast(x, N):
-    return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
-
-#depending on presence of openblas, as fast as numba.  
-def numpy_convolve_filter(data: numpy.ndarray):
-   normal = data.copy()
-   transposed = data.copy()
-   transposed = transposed.T
-   transposed_raveled = numpy.ravel(transposed)
-   normal_raveled = numpy.ravel(normal)
-
-   A =  runningMeanFast(transposed_raveled, 3)
-   transposed_raveled[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) /3
-   transposed_raveled[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2)/3
-   transposed_raveled[1:-1] = A 
-   transposed = transposed.T
-
-
-   A =  runningMeanFast(normal_raveled, 3)
-   normal_raveled[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) /3
-   normal_raveled[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2)/3
-   normal_raveled[1:-1] = A
-   return (transposed + normal )/2
-
-def numpyfilter_wrapper_50(data: numpy.ndarray):
-  d = data.copy()
-  for i in range(50):
-    d = numpy_convolve_filter(d)
-  return d
-
 def moving_average(x, w):
     return numpy.convolve(x, numpy.ones(w), 'same') / w
 
-def smoothpadded(data: numpy.ndarray):
-  o = numpy.pad(data, data.size//2, mode='median')
-  return moving_average(o,14)[data.size//2: -data.size//2]
+def smoothpadded(data: numpy.ndarray,n:float):
+  o = numpy.pad(data, n*2, mode='median')
+  return moving_average(o,n)[n*2: -n*2]
 
+#depending on presence of openblas, as fast as numba.  
+def numpy_convolve_filter_n(data: numpy.ndarray,N:float):
+   normal = data.copy()
+   transposed = data.copy()
+   transposed = transposed.T
+   transposed_raveled = transposed.reshape(-1)
+   normal_raveled = normal.reshape(-1)
+   normal_raveled[:] =  smoothpadded(normal_raveled, N)[:]
+   transposed_raveled[:] =  smoothpadded(transposed_raveled, N)[:]
+   
+   return (transposed.T + normal )/2
+
+def numpyfilter_wrapper_50_n(data: numpy.ndarray,n:float,iterations: int):
+  d = data.copy()
+  for i in range(iterations):
+    d = numpy_convolve_filter_n(d,n)
+  return d
 
 
 def generate_true_logistic(points):
@@ -285,14 +272,23 @@ def mask_generate(data: numpy.ndarray):
     if nbins<22 and maxstreak<16: #42 and 30 seem just as resilient
       return stft_vh.T * 1e-6
           
-    mask=numpy.zeros_like(stft_vh)
+    mask1=numpy.zeros_like(stft_vh)
     thresh = threshold(stft_vh[stft_vh>man(stft_vl.flatten())])
-    mask[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
-    mask[mask<1e-6] = 1e-6 #fill the residual with a small value
 
+    mask1[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
+    mask1[mask1<1e-6] = 1e-6 #set the residual value to the largest "small" value
+    mask1 = numpyfilter_wrapper_50_n(mask1,3,30)
+
+    mask2=numpy.zeros_like(stft_vh)
+    stft_vl =  numpyfilter_wrapper_50_n(stft_vl,14,7)
+    thresh = threshold(stft_vh[stft_vh>man(stft_vl.flatten())])
+    stft_vh =  numpyfilter_wrapper_50_n(stft_vh,14,7)
+
+    mask2[0:32,:] = fast_peaks(stft_vh[0:32,:],entropy,thresh,entropy_unmasked)
+    mask2[mask2<1e-6] = 1e-6 #set the residual value to the largest "small" value
+    mask2 = numpyfilter_wrapper_50_n(mask2,3,3)
+    mask = (mask1 + mask2)/2
     
-    mask1 = numpyfilter_wrapper_50(mask)
-    mask = numpy.maximum(mask,mask1)#preserve peaks, flood-fill valley
     return mask.T
 
 
