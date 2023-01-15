@@ -256,7 +256,7 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     
     # an ionosound sweep is also around or better than 24 samples, also
     if criteria_before ==0 and criteria_after == 0:
-      return stft_vh[128:256,:]* 1e-16
+      return stft_vh[128:256,:]* 1e-6
     #if there is no voice activity in the frames including the present that look before and after the present
     #then the present also has no activity to consider
           
