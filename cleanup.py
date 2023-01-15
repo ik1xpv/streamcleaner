@@ -48,7 +48,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #step three: locate the dedicated python terminal in your start menu, called mambaforge prompt.
 #within that prompt, give the following instructions:
 #conda install pip numpy scipy
-#pip install pipwin dearpygui pyroomacoustics numba
+#pip install pipwin dearpygui pyroomacoustics numba ssqueezepy
 #pipwin install pyaudio
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
 #step four: set the output for your SDR software to the input for the cable device.
@@ -78,7 +78,7 @@ import numba
 import numpy
 import pyroomacoustics as pra
 from threading import Thread
-
+from ssqueezpy import stft as sstft
 import pyaudio
 import dearpygui.dearpygui as dpg
 os.environ['SSQ_PARALLEL'] = '0'
@@ -222,7 +222,9 @@ logit_window = numpy.asarray([0.,0.05590667,0.11181333,0.14464919,0.16804013,0.1
 #optimal synthesis window generated with pyroomacoustics using pyroomacoustics.transform.stft.compute_synthesis_window(stftwindow, hop)
 
 
-def mask_generate(stft_vh: numpy.ndarray,stft_vl: numpy.ndarray):
+
+def mask_generate(data: numpy.ndarray):
+
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
     #https://en.wikipedia.org/wiki/Voice_frequency
@@ -231,13 +233,22 @@ def mask_generate(stft_vh: numpy.ndarray,stft_vl: numpy.ndarray):
     #to catch most voice activity on shortwave, we use the first 32 bins, or 3000hz.
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
-    lettuce_euler_macaroni = 0.058
+ 
+    data= numpy.asarray(data,dtype=float) #correct byte order of array if it is incorrect
+    lettuce_euler_macaroni = 0.057 #was grossman constant but that was arbitrarily chosen
+
+    stft_logit = sstft(x=data,window=logit_window,n_fft=512,hop_len=128)
+    stft_vl =  numpy.abs(stft_logit) #returns the same as other methods
+    stft_hann = sstft(x=data,window=hann,n_fft=512,hop_len=128) #get complex representation
+    stft_vh =  numpy.abs(stft_hann) #returns the same as other methods
+
     stft_vs = numpy.sort(stft_vl[0:32,:],axis=0) #sort the array
     
     entropy_unmasked = fast_entropy(stft_vs)
     entropy = smoothpadded(entropy_unmasked,14)
     factor = numpy.max(entropy)
-
+    
+    
     if factor < lettuce_euler_macaroni: 
       return stft_vh.T * 1e-6
     
@@ -289,14 +300,12 @@ class FilterThread(Thread):
         self.logit = generate_logit_window(512)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
-        self.stftl = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.logit,synthesis_window=self.synthesis ,online=True)
 
         self.residual = 0
 
     def process(self,data):         
            self.stft.analysis(data) #generate our complex representation
-           self.stftl.analysis(data) #generate our complex representation
-           mask = mask_generate(numpy.abs(self.stft.X.T),numpy.abs(self.stftl.X.T))
+           mask = mask_generate(data)
            output = self.stft.synthesis(X=self.stft.X* mask)
            return output
     def stop(self):
