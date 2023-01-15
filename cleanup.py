@@ -245,7 +245,7 @@ def mask_generate(data: numpy.ndarray):
     stft_vl = numpy.sort(stft_vl,axis=0) #sort the array
     
     entropy_unmasked = fast_entropy(stft_vl)
-    entropy = smoothpadded(entropy_unmasked)
+    entropy = smoothpadded(entropy_unmasked,14)
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
