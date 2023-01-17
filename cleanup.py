@@ -305,7 +305,7 @@ class FilterThread(Thread):
     def __init__(self):
         super(FilterThread, self).__init__()
         self.running = True
-        self.NFFT = 512 #note: if you change window size or hop, you need to re-create the logistic window and hann windows used.
+        self.NFFT = 512 
         self.NBINS=32
         self.hop = 128
         self.hann = generate_hann(512)
