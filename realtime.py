@@ -69,73 +69,47 @@ import pyaudio
 import dearpygui.dearpygui as dpg
 os.environ['SSQ_PARALLEL'] = '0'
 
-
-
-def generate_hann(M, sym=True):
-    a = [0.5, 0.5]
-    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
-    w = numpy.zeros(M)
-    for k in range(len(a)):
-        w += a[k] * numpy.cos(k * fac)
-    return w
-
-@numba.jit()
+@numba.njit(numba.float32(numba.float32[:]))
 def man(arr):
     med = numpy.nanmedian(arr[numpy.nonzero(arr)])
     return numpy.nanmedian(numpy.abs(arr - med))
 
-@numba.jit()
+@numba.njit(numba.float32(numba.float32[:]))
 def atd(arr):
     x = numpy.square(numpy.abs(arr - man(arr)))
     return numpy.sqrt(numpy.nanmean(x))
 
-#@numba.jit()
-#def threshhold(arr):
-#  return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
-
-def runningMeanFast(x, N):
-    return numpy.convolve(x, numpy.ones((N,))/N,mode="valid")
-
-def moving_average(x, w):
-    return numpy.convolve(x, numpy.ones(w), 'same') / w
-
-#depending on presence of openblas, as fast as numba.  
-def numpy_convolve_filter(data: numpy.ndarray):
-   normal = data.copy()
-   transposed = data.copy()
-   transposed = transposed.T
-   transposed_raveled = numpy.ravel(transposed)
-   normal_raveled = numpy.ravel(normal)
-
-   A =  runningMeanFast(transposed_raveled, 3)
-   transposed_raveled[0] = (transposed_raveled[0] + (transposed_raveled[1] + transposed_raveled[2]) / 2) /3
-   transposed_raveled[-1] = (transposed_raveled[-1] + (transposed_raveled[-2] + transposed_raveled[-3]) / 2)/3
-   transposed_raveled[1:-1] = A 
-   transposed = transposed.T
-
-
-   A =  runningMeanFast(normal_raveled, 3)
-   normal_raveled[0] = (normal_raveled[0] + (normal_raveled[1] + normal_raveled[2]) / 2) /3
-   normal_raveled[-1] = (normal_raveled[-1] + (normal_raveled[-2] + normal_raveled[-3]) / 2)/3
-   normal_raveled[1:-1] = A
-   return (transposed + normal )/2
-
-def numpyfilter_wrapper_50(data: numpy.ndarray):
-  d = data.copy()
-  for i in range(50):
-    d = numpy_convolve_filter(d)
-  return d
-
-def moving_average(x, w):
-    return numpy.convolve(x, numpy.ones(w), 'same') / w
-
-def smoothpadded(data: numpy.ndarray):
-  o = numpy.pad(data, data.size//2, mode='median')
-  return moving_average(o,14)[data.size//2: -data.size//2]
-
-@numba.jit()
+@numba.njit(numba.float32(numba.float32[:]))
 def threshold(data: numpy.ndarray):
- return numpy.sqrt(numpy.nanmean(numpy.square(numpy.abs(data -numpy.nanmedian(numpy.abs(data - numpy.nanmedian(data[numpy.nonzero(data)]))))))) + numpy.nanmedian(data[numpy.nonzero(data)])
+ a = numpy.sqrt(numpy.nanmean(numpy.square(numpy.abs(data -numpy.nanmedian(numpy.abs(data - numpy.nanmedian(data[numpy.nonzero(data)]))))))) + numpy.nanmedian(data[numpy.nonzero(data)])
+ return a
+
+@numba.njit(numba.float32(numba.float32[:]))
+def threshhold(arr):
+  return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
+
+def moving_average(x, w):
+    return numpy.convolve(x, numpy.ones(w), 'same') / w
+
+def smoothpadded(data: numpy.ndarray,n:float):
+  o = numpy.pad(data, n*2, mode='median')
+  return moving_average(o,n)[n*2: -n*2]
+
+def numpy_convolve_filter_longways(data: numpy.ndarray,N:int,M:int):
+  E = N*2
+  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="constant")  
+  for each in range(d.shape[0]):
+      for all in range(M):
+       d[each,:] = (d[each,:]  + (numpy.convolve(d[each,:], numpy.ones(N),mode="same") / N)[:])/2
+  return d[E:-E,:]
+
+def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
+  E = N*2
+  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="constant")  
+  for each in range(d.shape[1]):
+      for all in range(M):
+       d[:,each] = (d[:,each]  + (numpy.convolve(d[:,each], numpy.ones(N),mode="same") / N)[:])/2
+  return d[:,E:-E]
 
 def generate_true_logistic(points):
     fprint = numpy.linspace(0.0,1.0,points)
@@ -145,7 +119,7 @@ def generate_true_logistic(points):
     fprint[0] = -fprint[-1]
     return numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
 
-def generate_logit(size,sym =True):
+def generate_logit_window(size,sym =True):
   if sym == False or size<32:
     print("not supported")
     return numpy.zeros(size)
@@ -160,27 +134,43 @@ def generate_logit(size,sym =True):
     e = numpy.hstack((e,e[::-1]))
     return e
 
-@numba.njit()
-def fast_entropy(data: numpy.ndarray,logit):
-   entropy = numpy.zeros(data.shape[0])
+
+def generate_hann(M, sym=True):
+    a = [0.5, 0.5]
+    fac = numpy.linspace(-numpy.pi, numpy.pi, M)
+    w = numpy.zeros(M)
+    for k in range(len(a)):
+        w += a[k] * numpy.cos(k * fac)
+    return w
+
+
+@numba.njit(numba.float32[:](numba.float32[:,:]))
+def fast_entropy(data: numpy.ndarray):
+   logit = numpy.asarray([0.,0.08507164,0.17014328,0.22147297,0.25905871,0.28917305,0.31461489,0.33688201,0.35687314,0.37517276,0.39218487,0.40820283,0.42344877,0.43809738,0.45229105,0.46614996,0.47977928,0.49327447,0.50672553,0.52022072,0.53385004,0.54770895,0.56190262,0.57655123,0.59179717,0.60781513,0.62482724,0.64312686,0.66311799,0.68538511,0.71082695,0.74094129,0.77852703,0.82985672,0.91492836,1.])
+   #note: if you alter the number of bins, you need to regenerate this array. currently set to consider 36 bins
+   entropy = numpy.zeros(data.shape[0],dtype=numpy.float32)
    for each in range(data.shape[0]):
       d = data[each,:]
       d = numpy.interp(d, (d[0], d[-1]), (0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
-
-@numba.jit()
-def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,entropy_unmasked:numpy.ndarray,NBINS):
-    #0.01811 practical lowest
-    #0.595844362 practical highest
+@numba.jit(numba.float32[:,:](numba.float32[:,:],numba.int32[:],numba.float32,numba.float32[:]))
+def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,entropy_unmasked:numpy.ndarray):
+    #0.01811 practical lowest - but the absolute lowest is 0. 0 is a perfect logistic. 
+    #0.595844362 practical highest - an array of zeros with 1 value of 1.
+    #note: this calculation is dependent on the size of the logistic array.
+    #if you change the number of bins, this constraint will no longer hold and renormalizing will fail.
+    #a lookup table is not provided, however the value can be derived by setting up a one-shot fast_entropy that only considers one array,
+    #sorting, interpolating, and comparing it. 
     mask = numpy.zeros_like(stft_)
-    for each in range(stft_.shape[0]):
-        data = stft_[each,:]
+    for each in range(stft_.shape[1]):
+        data = stft_[:,each].copy()
         if entropy[each] == 0:
+            mask[0:36,each] =  0
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-        test = entropy_unmasked[each]  / 0.595844362
+        test = entropy_unmasked[each]  / 0.6091672572096941 #currently set for 36 bins
         test = abs(test - 1) 
         thresh1 = (thresh*test)
         if numpy.isnan(thresh1):
@@ -188,16 +178,12 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float64,en
         constant = (thresh1+constant)/2
         data[data<constant] = 0
         data[data>0] = 1
-        mask[each,0:NBINS] = data[0:NBINS]
+        mask[0:36,each] = data[:]
     return mask
 
 
-@numba.jit()
-def threshhold(arr):
-  return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
-
-@numba.jit()
-def longestConsecutive(nums):
+@numba.njit(numba.int32(numba.int32[:]))
+def longestConsecutive(nums: numpy.ndarray):
         longest_streak = 0
         streak = 0
         prevstreak = 0
@@ -209,7 +195,9 @@ def longestConsecutive(nums):
             streak = 0
         return max(streak,prevstreak)
 
-def mask_generation(stft_vh,entropy_unmasked,NBINS):
+
+
+def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:int,residue:float):
 
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
@@ -219,17 +207,19 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     #to catch most voice activity on shortwave, we use the first 32 bins, or 3000hz.
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
-
+    stft_vh = stft_vh.astype(dtype=numpy.float32)
     lettuce_euler_macaroni = 0.057
 
-    entropy = smoothpadded(entropy_unmasked)
+    entropy = smoothpadded(entropy_unmasked,14)
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
       return stft_vh[128:256,:] * 1e-6
 
+
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
+    entropy = entropy.astype(dtype=numpy.int32)
 
     criteria_before = 1
     criteria_after = 1
@@ -244,66 +234,57 @@ def mask_generation(stft_vh,entropy_unmasked,NBINS):
     maxstreak = longestConsecutive(entropy_before)
     if nbins<44 and maxstreak<32:
         criteria_after = 0
-
-
-    #ok, so the shortest vowels are still over 100ms long. That's around 37.59 samples. Call it 38.
-    #half of 38 is, go figure, 17.
-    #now we do have an issue- what if a vowel is being pronounced in the middle of transition?
-    #this *could* result in the end or beginning of words being truncated, but with this criteria,
-    #we reasonably establish that there are no regions as long as half a vowel.
-    #if there's really messed up speech(hence small segments) but enough of it(hence 22 bins)
-    #then we can consider the frame to consist of speech
-    
-    # an ionosound sweep is also around or better than 24 samples, also
     if criteria_before ==0 and criteria_after == 0:
       return stft_vh[128:256,:]* 1e-6
-    #if there is no voice activity in the frames including the present that look before and after the present
-    #then the present also has no activity to consider
-          
-    mask=numpy.zeros_like(stft_vh)
-    stft_vi = stft_vh[:,0:NBINS].flatten()
-    thresh = threshold(stft_vi[stft_vi>man(stft_vi)]) #unknown if this is best
-    mask[:] = fast_peaks(stft_vh,entropy,thresh,entropy_unmasked,NBINS)
-    mask[mask<1e-6] = 1e-6 
+    mask=numpy.zeros_like(stft_vh.T)
+
+    stft_vh1 = stft_vh[:,0:36]
+    thresh = threshold(stft_vh1[stft_vh1>residue])/2
+    stft_vi = stft_vh.T
+    mask[0:36,:] = fast_peaks(stft_vi[0:36,:],entropy,thresh,entropy_unmasked)
     
-    mask1 = numpyfilter_wrapper_50(mask)
-    mask = numpy.maximum(mask,mask1)
-    return mask[128:256,:]
-    
+    mask = numpy_convolve_filter_longways(mask,5,17)
+    mask2 = numpy_convolve_filter_topways(mask,5,2)
+    mask2 = numpy.where(mask==0,0,mask2)
+    mask2[mask2<1e-6] = 1e-6
+
+    mask3 = mask2.T
+    mask3 = mask3[128:256,:]
+    return mask3
+
 
 
 class FilterThread(Thread):
-    def __init__(self,  clearflag):
+    def __init__(self):
         super(FilterThread, self).__init__()
         self.running = True
         self.nframes = 128
         self.NFFT = 512
-        self.NBINS=32
+        self.NBINS=36
         self.hop = 64
         self.initialized = 0     
-        self.clearflag = 0
         self.hann = generate_hann(self.NFFT)
-        self.logistic = generate_logit(self.NFFT)
+        self.logistic = generate_logit_window(self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
-        self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True,num_frames=self.nframes)
-        self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=False,num_frames=self.nframes)
-        self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=False,num_frames=self.nframes)
-        self.true_logistic  = generate_true_logistic(self.NBINS)
-
-    def process(self,data,clear_flag:float = 0):        
-        if clear_flag == 1 or self.initialized ==0:
+        self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
+        self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=False)
+        self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=False)
+        
+    def process(self,data,):        
+        if self.initialized ==0:
            self.future = numpy.abs(self.oneshot_hann.analysis(data))
            logit = numpy.abs(self.oneshot_logit.analysis(data))
-           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1),self.true_logistic)
+           self.residue_future = man(numpy.abs(self.oneshot_logit.X[:,0:36].flatten()).astype(dtype=numpy.float32))
+           self.residue_present = 0.0
+           self.residue_past = 0.0
+           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1).astype(dtype=numpy.float32))
            self.present = numpy.zeros_like(self.future)
            self.present_entropy = numpy.zeros_like(self.entropy_future)
            self.past = numpy.zeros_like(self.future)
            self.past_entropy = numpy.zeros_like(self.present_entropy)
            self.future_audio = data.copy()
            self.present_audio = numpy.zeros(8192)
-           self.clearflag = 0
            self.initialized = 1
-           self.stft.reset()
            return data
 
         else:
@@ -313,16 +294,47 @@ class FilterThread(Thread):
            self.present_entropy = self.entropy_future.copy()
            self.future = numpy.abs(self.oneshot_hann.analysis(data))
            logit = numpy.abs(self.oneshot_logit.analysis(data))
-           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1),self.true_logistic)     
+           self.residue_past = self.residue_present
+           self.residue_present = self.residue_future
+           self.residue_future = man(numpy.abs(self.oneshot_logit.X[:,0:36].flatten()).astype(dtype=numpy.float32))
+
+           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1).astype(dtype=numpy.float32))     
            self.present_audio = self.future_audio.copy()
            self.future_audio = data.copy()      
            self.stft.analysis(self.present_audio)
-           mask = mask_generation(numpy.vstack((self.past,self.present,self.future)),numpy.hstack((self.past_entropy,self.present_entropy,self.entropy_future)),self.NBINS)
+           mask = mask_generation(numpy.abs(numpy.vstack((self.past,self.present,self.future))),numpy.hstack((self.past_entropy,self.present_entropy,self.entropy_future)),self.NBINS,self.residue_present)
            output = self.stft.synthesis(self.stft.X* mask)
            return output
   
     def stop(self):
         self.running = False 
+
+        
+def padarray(A, size):
+    t = size - len(A)
+    return numpy.pad(A, pad_width=(0, t), mode='constant',constant_values=numpy.std(A))
+
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+def process_data(data: numpy.ndarray):
+    print("processing ", data.size / rate, " seconds long file at ", rate, " rate.")
+    start = time.time()
+    filter = FilterThread()
+    processed = []
+    for each in chunks(data, 8192):
+        if each.size == 8192:
+            a = filter.process(each)
+            processed.append(a)
+        else:
+            psize = each.size
+            working = padarray(each, 8192)
+            processed.append(filter.process(working)[0:psize])
+    end = time.time()
+    print("took ", end - start, " to process ", data.size / rate)
+    return numpy.concatenate((processed), axis=0)     
 
 class StreamSampler(object):
 
@@ -331,10 +343,8 @@ class StreamSampler(object):
         self.processing_size = 8192
         self.sample_rate = sample_rate
         self.channels = channels
-        self.rightclearflag = 1
-        self.leftclearflag = 1
-        self.rightthread = FilterThread(self.rightclearflag)
-        self.leftthread = FilterThread(self.leftclearflag)
+        self.rightthread = FilterThread()
+        self.leftthread = FilterThread()
         self.micindex = micindex
         self.speakerindex = speakerindex
         self.micstream = None
