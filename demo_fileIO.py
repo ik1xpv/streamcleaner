@@ -35,7 +35,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #within that prompt, give the following instructions:
 #conda update --all
 #conda install pip numpy scipy
-#pip install tk numba pyroomacoustics ssqueezepy 
+#pip install tk numba pyroomacoustics
 #if all of these steps successfully complete, you're ready to go, otherwise fix things.
 #run it by executing this command in the terminal, in the folder containing the file: python demo_fileIO.py
 
@@ -232,7 +232,7 @@ def mask_generate(stft_vh1: numpy.ndarray,stft_vl1: numpy.ndarray):
     mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
     
     mask = numpy_convolve_filter_longways(mask,5,17)
-    mask2 = numpy_convolve_filter_topways(mask,5,1)
+    mask2 = numpy_convolve_filter_topways(mask,5,2)
     mask2 = numpy.where(mask==0,0,mask2)
     mask2[mask2<1e-6] = 1e-6
     return mask2.T
@@ -260,27 +260,6 @@ class FilterThread(Thread):
     def stop(self):
         self.running = False 
 
-
-class FilterThread(Thread):
-    def __init__(self):
-        super(FilterThread, self).__init__()
-        self.running = True
-        self.NFFT = 512 #note: if you change window size or hop, you need to re-create the logistic window and hann windows used.
-        self.NBINS=32
-        self.hop = 128
-        self.hann = hann
-        self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
-        self.stft = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
-        self.residual = 0
-
-    def process(self,data):        
-           self.stft.analysis(data)
-           mask = mask_generate(data)
-           output = self.stft.synthesis(self.stft.X* mask)
-           return output
-  
-    def stop(self):
-        self.running = False 
         
 def padarray(A, size):
     t = size - len(A)
