@@ -103,24 +103,21 @@ def smoothpadded(data: numpy.ndarray,n:float):
   o = numpy.pad(data, n*2, mode='median')
   return moving_average(o,n)[n*2: -n*2]
 
-#there's some marginal error involved here, but the speedup is double
 def numpy_convolve_filter_longways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=E,mode="constant")  
-  b = numpy.ravel(d)
-  for all in range(M):
-    b[:] = (b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
+  d = numpy.pad(array=data,pad_width=E,mode="reflect",reflect_type="even")  
+  for each in range(d.shape[0]):
+      for all in range(M):
+       d[each,:] = (d[each,:]  + (numpy.convolve(d[each,:], numpy.ones(N),mode="same") / N)[:])/2
   return d[E:-E,E:-E]
 
-#there's some marginal error involved here, but the speedup is double
 def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=E,mode="constant")  
-  d = d.T.copy()
-  b = numpy.ravel(d)
-  for all in range(M):
-    b[:] = (b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
-  return d[E:-E,E:-E].T
+  d = numpy.pad(array=data,pad_width=E,mode="reflect",reflect_type="even")  
+  for each in range(d.shape[1]):
+      for all in range(M):
+       d[:,each] = (d[:,each]  + (numpy.convolve(d[:,each], numpy.ones(N),mode="same") / N)[:])/2
+  return d[E:-E,E:-E]
 
 
 def generate_true_logistic(points):
