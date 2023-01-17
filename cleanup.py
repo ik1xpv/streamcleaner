@@ -232,7 +232,9 @@ logit_window = numpy.asarray([0.,0.05590667,0.11181333,0.14464919,0.16804013,0.1
 #D. Griffin and J. Lim, Signal estimation from modified short-time Fourier transform, IEEE Trans. Acoustics, Speech, and Signal Process., vol. 32, no. 2, pp. 236-243, 1984.
 #optimal synthesis window generated with pyroomacoustics using pyroomacoustics.transform.stft.compute_synthesis_window(stftwindow, hop)
 
-def mask_generate(data: numpy.ndarray):
+import copy
+
+def mask_generate(stft_vh1: numpy.ndarray,stft_vl1: numpy.ndarray):
 
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
@@ -241,8 +243,12 @@ def mask_generate(data: numpy.ndarray):
     #*most* SSB channels are constrained far below this. let's just go with 36 bins.
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
- 
-    data= numpy.asarray(data,dtype=float) #correct byte order of array if it is incorrect
+    stft_vh = numpy.ndarray(shape=stft_vh1.shape, dtype=numpy.float32, order='C') 
+    stft_vl = numpy.ndarray(shape=stft_vh1.shape, dtype=numpy.float32,order='C') 
+    stft_vh[:] = copy.deepcopy(stft_vh1)
+    stft_vl[:] = copy.deepcopy(stft_vl1)
+    #necessary to correct from fortran order to C order for numba
+    
     lettuce_euler_macaroni = 0.057 #was grossman constant but that was arbitrarily chosen
 
     stft_logit = sstft(x=data,window=logit_window,n_fft=512,hop_len=128)
@@ -258,7 +264,7 @@ def mask_generate(data: numpy.ndarray):
     
     
     if factor < lettuce_euler_macaroni: 
-      return stft_vh.T * 1e-6
+      return stft_vh.T * 1e-4
     
 
     entropy[entropy<lettuce_euler_macaroni] = 0
@@ -280,7 +286,7 @@ def mask_generate(data: numpy.ndarray):
     #if hop size 256 was chosen, nbins would be 11 and maxstreak would be 11.
     #however, fs/hop = maximum alias-free frequency. For hop size of 64, it's over 300hz.
     if nbins<22 and maxstreak<16:
-      return stft_vh.T * 1e-6
+      return stft_vh.T * 1e-4
     mask1=numpy.zeros_like(stft_vh)
     mask2=numpy.zeros_like(stft_vh)        
 
@@ -295,7 +301,7 @@ def mask_generate(data: numpy.ndarray):
     mask3[mask3>1]=1
 
     mask3 = (mask3 + mask2)/2 #converge the results
-    mask3[mask3<1e-6] = 1e-6
+    mask3[mask3<1e-6] = 1e-4
 
     return mask3.T
 
@@ -312,12 +318,15 @@ class FilterThread(Thread):
         self.logit = generate_logit_window(512)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
+        self.stftl = pra.transform.STFT(N=512, hop=self.hop, analysis_window=self.logit,synthesis_window=self.synthesis ,online=True)
 
         self.residual = 0
 
     def process(self,data):         
            self.stft.analysis(data) #generate our complex representation
-           mask = mask_generate(data)
+           self.stftl.analysis(data)
+           mask = mask_generate(numpy.abs(self.stft.X.T),numpy.abs(self.stftl.X.T))
+
            output = self.stft.synthesis(X=self.stft.X* mask)
            return output
     def stop(self):
