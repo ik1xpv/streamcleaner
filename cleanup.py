@@ -72,6 +72,7 @@ from threading import Thread
 
 import pyaudio
 import dearpygui.dearpygui as dpg
+os.environ['SSQ_PARALLEL'] = '0'
 
 
 
@@ -99,20 +100,18 @@ def smoothpadded(data: numpy.ndarray,n:float):
 
 def numpy_convolve_filter_longways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="median")  
-  b = numpy.ravel(d)
-  for all in range(M):
-       b[:] = (b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
+  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="constant")  
+  for each in range(d.shape[0]):
+      for all in range(M):
+       d[each,:] = (d[each,:]  + (numpy.convolve(d[each,:], numpy.ones(N),mode="same") / N)[:])/2
   return d[E:-E,:]
 
 def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="median")  
-  d = d.T.copy()
-  b = numpy.ravel(d)
-  for all in range(M):
-       b[:] = (b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
-  d = d.T
+  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="constant")  
+  for each in range(d.shape[1]):
+      for all in range(M):
+       d[:,each] = (d[:,each]  + (numpy.convolve(d[:,each], numpy.ones(N),mode="same") / N)[:])/2
   return d[:,E:-E]
 
 def generate_true_logistic(points):
@@ -269,7 +268,7 @@ def mask_generate(stft_vh1: numpy.ndarray,stft_vl1: numpy.ndarray):
 
     mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
     mask = numpy_convolve_filter_longways(mask,5,17)
-    mask2 = numpy_convolve_filter_topways(mask,5,1)
+    mask2 = numpy_convolve_filter_topways(mask,5,2)
     mask2 = numpy.where(mask==0,0,mask2)
     mask2[mask2<1e-6] = 1e-6
     return mask2.T
