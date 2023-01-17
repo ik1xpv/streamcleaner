@@ -22,7 +22,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 '''
-#Cleanup.py 1.1 1/15/2023 - OLA stft, non-normalized, double-masked,window-consistent maximum energy filtration method.
+#Cleanup.py 1.2 1/17/2023 - OLA stft, non-normalized, mask-optimal,window-consistent maximum energy filtration method.
 
 #additional code contributed by Justin Engel
 #idea and code and bugs by Joshuah Rainstar, Oscar Steila
