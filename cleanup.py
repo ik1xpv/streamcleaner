@@ -101,7 +101,6 @@ def smoothpadded(data: numpy.ndarray,n:float):
   o = numpy.pad(data, n*2, mode='median')
   return moving_average(o,n)[n*2: -n*2]
 
-#there's some marginal error involved here, but the speedup is double
 def numpy_convolve_filter_longways1d(data: numpy.ndarray,N:int,M:int):
   E = N*2
   d = numpy.pad(array=data,pad_width=E,mode="constant")  
@@ -110,7 +109,6 @@ def numpy_convolve_filter_longways1d(data: numpy.ndarray,N:int,M:int):
     b[:] = (b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
   return d[E:-E,E:-E]
 
-#there's some marginal error involved here, but the speedup is double
 def numpy_convolve_filter_topways1d(data: numpy.ndarray,N:int,M:int):
   E = N*2
   d = numpy.pad(array=data,pad_width=E,mode="constant")  
@@ -119,6 +117,27 @@ def numpy_convolve_filter_topways1d(data: numpy.ndarray,N:int,M:int):
   for all in range(M):
     b[:] = (b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
   return d[E:-E,E:-E].T
+#note: do not use the 1d form.
+#this completes faster(1s faster) but is more intensive on CPU and results in some edge issues.
+#if using a discrete STFT module to calculate the mask, you can disregard this warning.
+#for performance and speed, you can try it.
+
+
+def numpy_convolve_filter_longways(data: numpy.ndarray,N:int,M:int):
+  E = N*2
+  d = numpy.pad(array=data,pad_width=E,mode="reflect",reflect_type="even")  
+  for each in range(d.shape[0]):
+      for all in range(M):
+       d[each,:] = (d[each,:]  + (numpy.convolve(d[each,:], numpy.ones(N),mode="same") / N)[:])/2
+  return d[E:-E,E:-E]
+
+def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
+  E = N*2
+  d = numpy.pad(array=data,pad_width=E,mode="reflect",reflect_type="even")  
+  for each in range(d.shape[1]):
+      for all in range(M):
+       d[:,each] = (d[:,each]  + (numpy.convolve(d[:,each], numpy.ones(N),mode="same") / N)[:])/2
+  return d[E:-E,E:-E]
 
 def generate_true_logistic(points):
     fprint = numpy.linspace(0.0,1.0,points)
@@ -260,8 +279,9 @@ def mask_generate(stft_vh1: numpy.ndarray,stft_vl1: numpy.ndarray):
     thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
 
     mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
-    mask = numpy_convolve_filter_longways1d(mask,5,17)
-    mask2 = numpy_convolve_filter_topways1d(mask,5,1)
+    
+    mask = numpy_convolve_filter_longways(mask,5,17)
+    mask2 = numpy_convolve_filter_topways(mask,5,1)
     mask2 = numpy.where(mask==0,0,mask2)
     mask2[mask2<1e-6] = 1e-6
     return mask2.T
