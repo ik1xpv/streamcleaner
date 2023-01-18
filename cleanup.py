@@ -22,14 +22,14 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 '''
-#Cleanup.py 1.2.1 1/18/2023 
+#Cleanup.py 1.2.2 1/18/2023 
 
 #additional code contributed by Justin Engel
 #idea and code and bugs by Joshuah Rainstar, Oscar Steila
 #https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#cleanup.py- discrete frame processing, with overlap
-#a "realtime" 140ms latency version is available, but not fully optimized.
-#note: always use float64 when processing audio. Float32 does not provide enough precision to eliminate audible issues at frame edges.
+#discrete.py- discrete frame processing, with overlap
+#a "realtime" 140ms latency version is available, with similar performance.
+#considering 1 second at a time allows us the maximum benefit in voice processing.
 
 
 
@@ -100,19 +100,22 @@ def smoothpadded(data: numpy.ndarray,n:int):
 
 def numpy_convolve_filter_longways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="constant")  
-  for each in range(d.shape[0]):
-      for all in range(M):
-       d[each,:] = (d[each,:]  + (numpy.convolve(d[each,:], numpy.ones(N),mode="same") / N)[:])/2
-  return d[E:-E,:]
+  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="constant")  
+  b = numpy.ravel(d)  
+  for all in range(M):
+       b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
+  return d[:,E:-E]
 
 def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="constant")  
-  for each in range(d.shape[1]):
-      for all in range(M):
-       d[:,each] = (d[:,each]  + (numpy.convolve(d[:,each], numpy.ones(N),mode="same") / N)[:])/2
-  return d[:,E:-E]
+  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="constant")  
+  d = d.T.copy()  
+  b = numpy.ravel(d)  
+  for all in range(M):
+       b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same")[:] / N)[:])/2
+  d = d.T
+  return d[E:-E:]
+
 
 def generate_true_logistic(points):
     fprint = numpy.linspace(0.0,1.0,points)
