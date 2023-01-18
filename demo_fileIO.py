@@ -285,8 +285,7 @@ def process_data(data: numpy.ndarray):
             processed.append(filter.process(working)[0:psize])
     end = time.time()
     print("took ", end - start, " to process ", data.size / rate)
-    return numpy.concatenate((processed), axis=0)           
-
+    return numpy.concatenate((processed), axis=0).astype(dtype=data.dtype)           
 
 
 if __name__ == '__main__':
@@ -299,6 +298,6 @@ if __name__ == '__main__':
     print(infile)
     print(outfile)
     rate, data = wavfile.read(infile)
+    data = numpy.asarray(data)#correct the format for processing
     reduced_noise = process_data(data)
-
-    wavfile.write(outfile, rate, reduced_noise.astype(numpy.float32))
+    wavfile.write(outfile, rate, reduced_noise)
