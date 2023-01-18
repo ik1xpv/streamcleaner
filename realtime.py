@@ -1,5 +1,3 @@
-print("this is only an experiment and does not reflect the performance of other scripts located in this directory")
-exit(0)
 '''
 Copyright 2022 Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
@@ -67,24 +65,23 @@ from threading import Thread
 
 import pyaudio
 import dearpygui.dearpygui as dpg
-os.environ['SSQ_PARALLEL'] = '0'
 
-@numba.njit(numba.float32(numba.float32[:]))
+@numba.njit(numba.float64(numba.float64[:]))
 def man(arr):
     med = numpy.nanmedian(arr[numpy.nonzero(arr)])
     return numpy.nanmedian(numpy.abs(arr - med))
 
-@numba.njit(numba.float32(numba.float32[:]))
+@numba.njit(numba.float64(numba.float64[:]))
 def atd(arr):
     x = numpy.square(numpy.abs(arr - man(arr)))
     return numpy.sqrt(numpy.nanmean(x))
 
-@numba.njit(numba.float32(numba.float32[:]))
+@numba.njit(numba.float64(numba.float64[:]))
 def threshold(data: numpy.ndarray):
  a = numpy.sqrt(numpy.nanmean(numpy.square(numpy.abs(data -numpy.nanmedian(numpy.abs(data - numpy.nanmedian(data[numpy.nonzero(data)]))))))) + numpy.nanmedian(data[numpy.nonzero(data)])
  return a
 
-@numba.njit(numba.float32(numba.float32[:]))
+@numba.njit(numba.float64(numba.float64[:]))
 def threshhold(arr):
   return (atd(arr)+ numpy.nanmedian(arr[numpy.nonzero(arr)])) 
 
@@ -97,19 +94,22 @@ def smoothpadded(data: numpy.ndarray,n:float):
 
 def numpy_convolve_filter_longways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="constant")  
-  for each in range(d.shape[0]):
-      for all in range(M):
-       d[each,:] = (d[each,:]  + (numpy.convolve(d[each,:], numpy.ones(N),mode="same") / N)[:])/2
-  return d[E:-E,:]
+  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="constant")  
+  b = numpy.ravel(d)  
+  for all in range(M):
+       b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
+  return d[:,E:-E]
+#after i got the padding right.. this retuns identical results in a fraction of the time!
 
 def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
   E = N*2
-  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="constant")  
-  for each in range(d.shape[1]):
-      for all in range(M):
-       d[:,each] = (d[:,each]  + (numpy.convolve(d[:,each], numpy.ones(N),mode="same") / N)[:])/2
-  return d[:,E:-E]
+  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="constant")  
+  d = d.T.copy()  
+  b = numpy.ravel(d)  
+  for all in range(M):
+       b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same")[:] / N)[:])/2
+  d = d.T
+  return d[E:-E:]
 
 def generate_true_logistic(points):
     fprint = numpy.linspace(0.0,1.0,points)
@@ -144,18 +144,18 @@ def generate_hann(M, sym=True):
     return w
 
 
-@numba.njit(numba.float32[:](numba.float32[:,:]))
+@numba.njit(numba.float64[:](numba.float64[:,:]))
 def fast_entropy(data: numpy.ndarray):
    logit = numpy.asarray([0.,0.08507164,0.17014328,0.22147297,0.25905871,0.28917305,0.31461489,0.33688201,0.35687314,0.37517276,0.39218487,0.40820283,0.42344877,0.43809738,0.45229105,0.46614996,0.47977928,0.49327447,0.50672553,0.52022072,0.53385004,0.54770895,0.56190262,0.57655123,0.59179717,0.60781513,0.62482724,0.64312686,0.66311799,0.68538511,0.71082695,0.74094129,0.77852703,0.82985672,0.91492836,1.])
    #note: if you alter the number of bins, you need to regenerate this array. currently set to consider 36 bins
-   entropy = numpy.zeros(data.shape[0],dtype=numpy.float32)
+   entropy = numpy.zeros(data.shape[0],dtype=numpy.float64)
    for each in range(data.shape[0]):
       d = data[each,:]
       d = numpy.interp(d, (d[0], d[-1]), (0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
-@numba.jit(numba.float32[:,:](numba.float32[:,:],numba.int32[:],numba.float32,numba.float32[:]))
+@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int32[:],numba.float64,numba.float64[:]))
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,entropy_unmasked:numpy.ndarray):
     #0.01811 practical lowest - but the absolute lowest is 0. 0 is a perfect logistic. 
     #0.595844362 practical highest - an array of zeros with 1 value of 1.
@@ -197,7 +197,7 @@ def longestConsecutive(nums: numpy.ndarray):
 
 
 
-def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:int,residue:float):
+def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:int,residue:numpy.float64):
 
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
@@ -207,10 +207,10 @@ def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:i
     #to catch most voice activity on shortwave, we use the first 32 bins, or 3000hz.
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
-    stft_vh = stft_vh.astype(dtype=numpy.float32)
+    stft_vh = stft_vh.astype(dtype=numpy.float64)
     lettuce_euler_macaroni = 0.057
 
-    entropy = smoothpadded(entropy_unmasked,14)
+    entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
@@ -246,12 +246,12 @@ def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:i
     mask = numpy_convolve_filter_longways(mask,5,17)
     mask2 = numpy_convolve_filter_topways(mask,5,2)
     mask2 = numpy.where(mask==0,0,mask2)
+    mask2 = (mask2 - numpy.nanmin(mask2)) / numpy.ptp(mask2) #normalize to 1.0
     mask2[mask2<1e-6] = 1e-6
 
     mask3 = mask2.T
     mask3 = mask3[128:256,:]
     return mask3
-
 
 
 class FilterThread(Thread):
