@@ -73,7 +73,7 @@ from threading import Thread
 import pyaudio
 import dearpygui.dearpygui as dpg
 os.environ['SSQ_PARALLEL'] = '0'
-
+import time
 
 
 @numba.njit(numba.float32(numba.float32[:]))
@@ -332,7 +332,7 @@ def mask_generate_old(data: numpy.ndarray):
 
 @numba.jit()
 def MSE(mask1, mask2):
-    err = np.sum((imageA - imageB) ** 2)
+    err = numpy.sum((imageA - imageB) ** 2)
     err /= float(imageA.shape[0] * imageA.shape[1])
     return err
 
