@@ -25,9 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #additional code contributed by Justin Engel
 #idea and code and bugs by Joshuah Rainstar, Oscar Steila
 #https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#realtime.py 
-#works poorly, but it works. 
-#latency is 128 frames out of 750 ~ 170ms latency.
+#realtime.py 1.0 - 1/18/23 - it works.
 
 #How to use this file:
 #you will need 1 virtual audio cable- try https://vb-audio.com/Cable/ if you use windows.
@@ -196,7 +194,6 @@ def longestConsecutive(nums: numpy.ndarray):
 
 import copy
 
-
 def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
     #24000/256 = 93.75 hz per frequency bin.
@@ -221,7 +218,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return (stft_vh[:,128:256] * 1e-6).T
+      return (stft_vh[:,64:128] * 1e-6).T
 
 
     entropy[entropy<lettuce_euler_macaroni] = 0
@@ -234,15 +231,15 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     entropy_before = entropy[0:256]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
-    if nbins<44 and maxstreak<32:
+    if nbins<22 and maxstreak<16:
         criteria_before = 0
     entropy_after = entropy[128:]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
-    if nbins<44 and maxstreak<32:
+    if nbins<22 and maxstreak<16:
         criteria_after = 0
     if criteria_before ==0 and criteria_after == 0:
-      return (stft_vh[:,128:256] * 1e-6).T
+      return (stft_vh[:,64:128]  * 1e-6).T
 
     mask=numpy.zeros_like(stft_vh)
 
@@ -257,7 +254,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     mask2 = (mask2 - numpy.nanmin(mask2)) / numpy.ptp(mask2) #normalize to 1.0
     mask2[mask2<1e-6] = 1e-6
 
-    mask3 = mask2[:,128:256]
+    mask3 = mask2[:,64:128]
     return mask3.T
 
 
@@ -265,10 +262,9 @@ class FilterThread(Thread):
     def __init__(self):
         super(FilterThread, self).__init__()
         self.running = True
-        self.nframes = 128
         self.NFFT = 512
         self.NBINS=36
-        self.hop = 64
+        self.hop = 128
         self.hann = generate_hann(self.NFFT)
         self.logistic = generate_logit_window(self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
@@ -276,6 +272,7 @@ class FilterThread(Thread):
         self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
         self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=True)
         self.audio = numpy.zeros(8192*3)
+
     def process(self,data,):        
            self.audio = numpy.roll(self.audio,-8192)
            self.audio[-8192:] = data[:]
