@@ -1,3 +1,6 @@
+print("do not use, this is an out of date version. Behavior is not suitable for demonstration purposes.")
+import sys
+sys.exit(0)
 '''
 FILE IO Demo v2.0
 Copyright 2022 Oscar Steila, Joshuah Rainstar
