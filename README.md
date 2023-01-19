@@ -1,7 +1,7 @@
 # Stream Cleaner
 Since i'm not good at explanations, I'll just keep this short and simple:
 
-Cleanup.py is the file you want here.
+Cleanup.py is the file you want here. For the realtime version, try realtime.py.
 
 This repository contains a really good method for reducing noise in audio, for use with speech and other similar waveforms.
 It can be used to denoise CW as well, although it should be tweaked for that. It should not be used for denoising data modes.
@@ -16,8 +16,6 @@ invoking dearpygui, tk, pyaudio, and other components as needed, but they are no
 It would be easy to port this algorithm to other languages provided you have a numpy-equivalent array handling library and stft.
 OLA-consistent processing is provided by pyroomacoustics, but more scientifically precise analysis windows are provided by ssqueezepy.
 
-Most of the programs provided here require a minimum of a 1 second frame to deliver good results.
-That means they are not quite realtime but 1 second delayed or process in a 1 second frame.
-You can also try realtime.py for a version that considers 180ms fragments but I do not consider it great.
+
 
 
