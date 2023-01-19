@@ -65,7 +65,6 @@ from threading import Thread
 
 import pyaudio
 import dearpygui.dearpygui as dpg
-
 @numba.njit(numba.float64(numba.float64[:]))
 def man(arr):
     med = numpy.nanmedian(arr[numpy.nonzero(arr)])
@@ -148,12 +147,13 @@ def generate_hann(M, sym=True):
 def fast_entropy(data: numpy.ndarray):
    logit = numpy.asarray([0.,0.08507164,0.17014328,0.22147297,0.25905871,0.28917305,0.31461489,0.33688201,0.35687314,0.37517276,0.39218487,0.40820283,0.42344877,0.43809738,0.45229105,0.46614996,0.47977928,0.49327447,0.50672553,0.52022072,0.53385004,0.54770895,0.56190262,0.57655123,0.59179717,0.60781513,0.62482724,0.64312686,0.66311799,0.68538511,0.71082695,0.74094129,0.77852703,0.82985672,0.91492836,1.])
    #note: if you alter the number of bins, you need to regenerate this array. currently set to consider 36 bins
-   entropy = numpy.zeros(data.shape[0],dtype=numpy.float64)
-   for each in range(data.shape[0]):
-      d = data[each,:]
+   entropy = numpy.zeros(data.shape[1],dtype=numpy.float64)
+   for each in numba.prange(data.shape[1]):
+      d = data[:,each]
       d = numpy.interp(d, (d[0], d[-1]), (0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
+
 
 @numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int32[:],numba.float64,numba.float64[:]))
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,entropy_unmasked:numpy.ndarray):
@@ -164,7 +164,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,en
     #a lookup table is not provided, however the value can be derived by setting up a one-shot fast_entropy that only considers one array,
     #sorting, interpolating, and comparing it. 
     mask = numpy.zeros_like(stft_)
-    for each in range(stft_.shape[1]):
+    for each in numba.prange(stft_.shape[1]):
         data = stft_[:,each].copy()
         if entropy[each] == 0:
             mask[0:36,each] =  0
@@ -181,7 +181,6 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,en
         mask[0:36,each] = data[:]
     return mask
 
-
 @numba.njit(numba.int32(numba.int32[:]))
 def longestConsecutive(nums: numpy.ndarray):
         longest_streak = 0
@@ -195,9 +194,10 @@ def longestConsecutive(nums: numpy.ndarray):
             streak = 0
         return max(streak,prevstreak)
 
+import copy
 
 
-def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:int,residue:numpy.float64):
+def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
@@ -207,14 +207,21 @@ def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:i
     #to catch most voice activity on shortwave, we use the first 32 bins, or 3000hz.
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
-    stft_vh = stft_vh.astype(dtype=numpy.float64)
-    lettuce_euler_macaroni = 0.057
+    stft_vh = numpy.ndarray(shape=stft_vh1.shape, dtype=numpy.float64, order='C') 
+    stft_vl = numpy.ndarray(shape=stft_vh1.shape, dtype=numpy.float64,order='C') 
+    stft_vh[:] = copy.deepcopy(stft_vh1)
+    stft_vl[:] = copy.deepcopy(stft_vl1)
 
+
+    lettuce_euler_macaroni = 0.057
+    stft_vs = numpy.sort(stft_vl[0:36,:],axis=0) #sort the array
+    entropy_unmasked = fast_entropy(stft_vs)
     entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
+
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return stft_vh[128:256,:] * 1e-6
+      return (stft_vh[:,128:256] * 1e-6).T
 
 
     entropy[entropy<lettuce_euler_macaroni] = 0
@@ -235,13 +242,14 @@ def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:i
     if nbins<44 and maxstreak<32:
         criteria_after = 0
     if criteria_before ==0 and criteria_after == 0:
-      return stft_vh[128:256,:]* 1e-6
-    mask=numpy.zeros_like(stft_vh.T)
+      return (stft_vh[:,128:256] * 1e-6).T
 
-    stft_vh1 = stft_vh[:,0:36]
-    thresh = threshold(stft_vh1[stft_vh1>residue])/2
-    stft_vi = stft_vh.T
-    mask[0:36,:] = fast_peaks(stft_vi[0:36,:],entropy,thresh,entropy_unmasked)
+    mask=numpy.zeros_like(stft_vh)
+
+    stft_vh1 = stft_vh[0:36,:]
+    thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
+
+    mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
     
     mask = numpy_convolve_filter_longways(mask,5,17)
     mask2 = numpy_convolve_filter_topways(mask,5,2)
@@ -249,9 +257,8 @@ def mask_generation(stft_vh:numpy.ndarray,entropy_unmasked:numpy.ndarray,NBINS:i
     mask2 = (mask2 - numpy.nanmin(mask2)) / numpy.ptp(mask2) #normalize to 1.0
     mask2[mask2<1e-6] = 1e-6
 
-    mask3 = mask2.T
-    mask3 = mask3[128:256,:]
-    return mask3
+    mask3 = mask2[:,128:256]
+    return mask3.T
 
 
 class FilterThread(Thread):
@@ -262,47 +269,20 @@ class FilterThread(Thread):
         self.NFFT = 512
         self.NBINS=36
         self.hop = 64
-        self.initialized = 0     
         self.hann = generate_hann(self.NFFT)
         self.logistic = generate_logit_window(self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
-        self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=False)
-        self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=False)
-        
+        self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
+        self.oneshot_logit = pra.transform.STFT(512, hop=self.hop, analysis_window=self.logistic,synthesis_window=self.synthesis ,online=True)
+        self.audio = numpy.zeros(8192*3)
     def process(self,data,):        
-        if self.initialized ==0:
-           self.future = numpy.abs(self.oneshot_hann.analysis(data))
-           logit = numpy.abs(self.oneshot_logit.analysis(data))
-           self.residue_future = man(numpy.abs(self.oneshot_logit.X[:,0:36].flatten()).astype(dtype=numpy.float32))
-           self.residue_present = 0.0
-           self.residue_past = 0.0
-           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1).astype(dtype=numpy.float32))
-           self.present = numpy.zeros_like(self.future)
-           self.present_entropy = numpy.zeros_like(self.entropy_future)
-           self.past = numpy.zeros_like(self.future)
-           self.past_entropy = numpy.zeros_like(self.present_entropy)
-           self.future_audio = data.copy()
-           self.present_audio = numpy.zeros(8192)
-           self.initialized = 1
-           return data
-
-        else:
-           self.past = self.present.copy()
-           self.past_entropy = self.present_entropy.copy()
-           self.present = self.future.copy()
-           self.present_entropy = self.entropy_future.copy()
-           self.future = numpy.abs(self.oneshot_hann.analysis(data))
-           logit = numpy.abs(self.oneshot_logit.analysis(data))
-           self.residue_past = self.residue_present
-           self.residue_present = self.residue_future
-           self.residue_future = man(numpy.abs(self.oneshot_logit.X[:,0:36].flatten()).astype(dtype=numpy.float32))
-
-           self.entropy_future = fast_entropy(numpy.sort(logit[:,0:self.NBINS],axis=1).astype(dtype=numpy.float32))     
-           self.present_audio = self.future_audio.copy()
-           self.future_audio = data.copy()      
-           self.stft.analysis(self.present_audio)
-           mask = mask_generation(numpy.abs(numpy.vstack((self.past,self.present,self.future))),numpy.hstack((self.past_entropy,self.present_entropy,self.entropy_future)),self.NBINS,self.residue_present)
+           self.audio = numpy.roll(self.audio,-8192)
+           self.audio[-8192:] = data[:]
+           logit = self.oneshot_logit.analysis(self.audio)
+           hann = self.oneshot_hann.analysis(self.audio)
+           self.stft.analysis(self.audio[8192:-8192])
+           mask = mask_generation(numpy.abs(hann).T,numpy.abs(logit).T,self.NBINS)
            output = self.stft.synthesis(self.stft.X* mask)
            return output
   
@@ -335,6 +315,7 @@ def process_data(data: numpy.ndarray):
     end = time.time()
     print("took ", end - start, " to process ", data.size / rate)
     return numpy.concatenate((processed), axis=0)     
+
 
 class StreamSampler(object):
 
