@@ -181,7 +181,6 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,en
 
 @numba.njit(numba.int32(numba.int32[:]))
 def longestConsecutive(nums: numpy.ndarray):
-        longest_streak = 0
         streak = 0
         prevstreak = 0
         for num in range(nums.size):
@@ -241,21 +240,37 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     if criteria_before ==0 and criteria_after == 0:
       return (stft_vh[:,64:128]  * 1e-6).T
 
+
+    if criteria_before == 0 and numpy.sum(entropy[192:224]) == 0:
+      return (stft_vh[:,64:128]  * 1e-5).T
+    #assume that if the first half of the upcoming frame is silent, then we don't need to consider
+    #some minor speech in the second half as an incentive to process the current frame
+
+    if criteria_after == 0 and numpy.sum(entropy[32:64]) == 0:
+      return (stft_vh[:,64:128]  * 1e-5).T
+    #assume likewise for the past. 
+
+
     mask=numpy.zeros_like(stft_vh)
 
     stft_vh1 = stft_vh[0:36,:]
     thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
-
-    mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
     
+    mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
+    mask = mask[:,(64-16):(128+16)]
+    #doing a bit of cropping delivers identical results with less cycles used.
     mask = numpy_convolve_filter_longways(mask,5,17)
-    mask2 = numpy_convolve_filter_topways(mask,5,2)
+    mask = mask[:,16:(64+16)] #further crop to the final mask size
+    mask2 = numpy_convolve_filter_topways(mask,5,2) 
     mask2 = numpy.where(mask==0,0,mask2)
-    mask2 = (mask2 - numpy.nanmin(mask2)) / numpy.ptp(mask2) #normalize to 1.0
-    mask2[mask2<1e-6] = 1e-6
-
-    mask3 = mask2[:,64:128]
-    return mask3.T
+    #i think normalizing, is risky, because we're only taking the localized frame maximum.
+    #this stands to risk causing some small fragments to be enhanced too much and perhaps distorting the results.
+    #additionally, what's the maximum? it's *never* above 1.0, usually around 0.75-0.92
+    #adding a gain stage *after* filtration is generally a better idea than trying to compensate for it here.
+    #the choice of filler value 1e-5 is unknown. 
+    mask2[mask2<1e-5] = 1e-5
+    #mask2 = mask2[:,64:128]
+    return mask2.T
 
 
 class FilterThread(Thread):
