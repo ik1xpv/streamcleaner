@@ -70,7 +70,8 @@ from matplotlib import cm
 import cv2
 
 NBINS_GUI = int(48) # GUI displays nbins
-
+N_BINS = int(36)
+ 
 @numba.njit(numba.float64(numba.float64[:]))
 def man(arr):
     med = numpy.nanmedian(arr[numpy.nonzero(arr)])
@@ -148,16 +149,26 @@ def generate_hann(M, sym=True):
         w += a[k] * numpy.cos(k * fac)
     return w
 
+def logit_generation(npoints):
+        logit = numpy.linspace(0, 1, npoints, dtype=numpy.float64)
+        logit[1:-1] /= 1 - logit[1:-1]       # all but first and last, divide by 1 - the value.
+        logit[1:-1] = numpy.log(logit[1:-1])  # all but the first and last, log(value)
+        logit[-1] = ((2 * logit[-2]) - logit[-3])
+        logit[0] = -logit[-1]
+        m = logit[-1]
+        logit += m
+        logit /= m * 2
+        return logit
+#note: if you alter the number of bins, you need to regenerate this array. currently set to consider N_BINS bins        
+LOGIT = logit_generation(N_BINS)        
 
 @numba.njit(numba.float64[:](numba.float64[:,:]))
 def fast_entropy(data: numpy.ndarray):
-   logit = numpy.asarray([0.,0.08507164,0.17014328,0.22147297,0.25905871,0.28917305,0.31461489,0.33688201,0.35687314,0.37517276,0.39218487,0.40820283,0.42344877,0.43809738,0.45229105,0.46614996,0.47977928,0.49327447,0.50672553,0.52022072,0.53385004,0.54770895,0.56190262,0.57655123,0.59179717,0.60781513,0.62482724,0.64312686,0.66311799,0.68538511,0.71082695,0.74094129,0.77852703,0.82985672,0.91492836,1.])
-   #note: if you alter the number of bins, you need to regenerate this array. currently set to consider 36 bins
    entropy = numpy.zeros(data.shape[1],dtype=numpy.float64)
    for each in numba.prange(data.shape[1]):
       d = data[:,each]
       d = numpy.interp(d, (d[0], d[-1]), (0, +1))
-      entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
+      entropy[each] = 1 - numpy.corrcoef(d, LOGIT)[0,1]
    return entropy
 
 
@@ -169,14 +180,14 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,en
     #if you change the number of bins, this constraint will no longer hold and renormalizing will fail.
     #a lookup table is not provided, however the value can be derived by setting up a one-shot fast_entropy that only considers one array,
     #sorting, interpolating, and comparing it. 
-    mask = numpy.zeros_like(stft_)
+    mask = numpy.zeros_like(stft_) 
     for each in numba.prange(stft_.shape[1]):
         data = stft_[:,each].copy()
         if entropy[each] == 0:
-            mask[0:36,each] =  0
+            mask[0:N_BINS,each] =  0
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-        test = entropy_unmasked[each]  / 0.6091672572096941 #currently set for 36 bins
+        test = entropy_unmasked[each]  / 0.6091672572096941 #currently set for N_BINS bins
         test = abs(test - 1) 
         thresh1 = (thresh*test)
         if numpy.isnan(thresh1):
@@ -184,7 +195,7 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,en
         constant = (thresh1+constant)/2
         data[data<constant] = 0
         data[data>0] = 1
-        mask[0:36,each] = data[:]
+        mask[0:N_BINS,each] = data[:]
     return mask
 
 @numba.njit(numba.int32(numba.int32[:]))
@@ -237,7 +248,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
 
     lettuce_euler_macaroni = 0.057
-    stft_vs = numpy.sort(stft_vl[0:36,:],axis=0) #sort the array
+    stft_vs = numpy.sort(stft_vl[0:N_BINS,:],axis=0) #sort the array
     entropy_unmasked = fast_entropy(stft_vs)
     entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
 
@@ -254,25 +265,25 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     criteria_before = 1
     criteria_after = 1
 
-    entropy_before = entropy[0:256]
+    entropy_before = entropy[0:128] 
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
     if nbins<22 and maxstreak<16:
         criteria_before = 0
     entropy_after = entropy[128:]
-    nbins = numpy.sum(entropy_before)
-    maxstreak = longestConsecutive(entropy_before)
+    nbins = numpy.sum(entropy_after)
+    maxstreak = longestConsecutive(entropy_after)
     if nbins<22 and maxstreak<16:
         criteria_after = 0
     if criteria_before ==0 and criteria_after == 0:
-      return (stft_vh[:,64:128]  * 1e-6).T
+      return (stft_vh[:,64:128] * 1e-6).T
 
     mask=numpy.zeros_like(stft_vh)
 
-    stft_vh1 = stft_vh[0:36,:]
-    thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
+    stft_vh1 = stft_vh[0:N_BINS,:]
+    thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:N_BINS,:].flatten())])/2
 
-    mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
+    mask[0:N_BINS,:] = fast_peaks(stft_vh[0:N_BINS,:],entropy,thresh,entropy_unmasked)
     
     mask = numpy_convolve_filter_longways(mask,5,17)
     mask2 = numpy_convolve_filter_topways(mask,5,2)
@@ -283,13 +294,12 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     mask3 = mask2[:,64:128]
     return mask3.T
 
-
 class FilterThread(Thread):
     def __init__(self):
         super(FilterThread, self).__init__()
         self.running = True
         self.NFFT = 512
-        self.NBINS=36
+        self.NBINS=N_BINS
         self.hop = 128
         self.hann = generate_hann(self.NFFT)
         self.logistic = generate_logit_window(self.NFFT)
@@ -487,6 +497,8 @@ def denoisetoggle(sender, app_data,user_data):
         else:
             dpg.set_item_label("toggleswitch", "cleanup is ON ")
             SS.denoise = True
+
+
 
 if __name__ == "__main__":
     SS = StreamSampler()
