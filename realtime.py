@@ -227,12 +227,12 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     criteria_before = 1
     criteria_after = 1
 
-    entropy_before = entropy[0:256]
+    entropy_before = entropy[0:128]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
     if nbins<22 and maxstreak<16:
         criteria_before = 0
-    entropy_after = entropy[128:]
+    entropy_after = entropy[64:]
     nbins = numpy.sum(entropy_before)
     maxstreak = longestConsecutive(entropy_before)
     if nbins<22 and maxstreak<16:
@@ -241,8 +241,8 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
       return (stft_vh[:,64:128]  * 1e-6).T
 
 
-    if criteria_before == 0 and numpy.sum(entropy[192:224]) == 0:
-      return (stft_vh[:,64:128]  * 1e-5).T
+    if criteria_before == 0 and numpy.sum(entropy[128:160]) == 0:
+      return (stft_vh[:,64:128]  * 1e-5)
     #assume that if the first half of the upcoming frame is silent, then we don't need to consider
     #some minor speech in the second half as an incentive to process the current frame
 
