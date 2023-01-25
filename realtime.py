@@ -196,9 +196,6 @@ def smoothgaps(nums: numpy.ndarray):
       returns = nums.copy()
       if returns[1] == 1 and returns[0] == 0:
            returns[0] = 1
-      for num in range(1,nums.size-1):
-         if nums[num] == 0 and nums[num-1] == 1 and nums[num+1] ==1:
-           returns[num] = 1
       if returns[-1] == 0 and returns[-2] ==1:
         returns[-1] = 1
 
@@ -209,9 +206,13 @@ def smoothgaps(nums: numpy.ndarray):
            returns[num] = 0
       if returns[-1] == 1 and returns[-2] ==0:
         returns[-1] = 0
+      for num in range(1,nums.size-1):
+         if nums[num] == 0 and nums[num-1] == 1 and nums[num+1] ==1:
+           returns[num] = 1
 
 
       return returns
+          
           
 
 
@@ -290,21 +291,18 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
 
     mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
-    mask = mask[:,(64-16):(128+16)]
+    mask = mask[:,32:160]
 
     #doing a bit of cropping delivers identical results with less cycles used.
+
     mask2 = numpy_convolve_filter_longways(mask,14,5)
-    mask2 = mask2[:,16:(64+16)] #further crop to the final mask size
-    mask2 = numpy_convolve_filter_topways(mask2,3,5) #save a few cycles- since we only need this
+    mask2 = mask[:,32:96]
+    mask2 = numpy_convolve_filter_topways(mask2,3,5) 
 
     
     mask3 = numpy_convolve_filter_longways(mask,7,5)
-    mask3 = mask3[:,16:(64+16)] #further crop to the final mask size
+    mask3 = mask3[:,32:96]
     mask3 = numpy_convolve_filter_topways(mask3,5,5) 
-    
-    #using two different masks and then combining them doesn't necessarily offer much of a benefit.
-    #to bypass this or just test with the original method, just pass the second 
-
 
     mask4 = (mask3 + mask2)/2
 
@@ -319,6 +317,8 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
     
     return mask4.T
+
+
 
 class FilterThread(Thread):
     def __init__(self):
