@@ -191,6 +191,31 @@ def longestConsecutive(nums: numpy.ndarray):
             streak = 0
         return max(streak,prevstreak)
 
+@numba.njit(numba.int32[:](numba.int32[:]))
+def smoothgaps(nums: numpy.ndarray):
+      returns = nums.copy()
+      if returns[1] == 1 and returns[0] == 0:
+           returns[0] = 1
+      for num in range(1,nums.size-1):
+         if nums[num] == 0 and nums[num-1] == 1 and nums[num+1] ==1:
+           returns[num] = 1
+      if returns[-1] == 0 and returns[-2] ==1:
+        returns[-1] = 1
+
+      if returns[1] == 0 and returns[0] == 1:
+           returns[0] = 0
+      for num in range(1,nums.size-1):
+         if returns[num] == 1 and returns[num-1] == 0 and returns[num+1] ==0:
+           returns[num] = 0
+      if returns[-1] == 1 and returns[-2] ==0:
+        returns[-1] = 0
+
+
+      return returns
+          
+
+
+
 import copy
 
 def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
@@ -207,17 +232,19 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     stft_vl = numpy.ndarray(shape=stft_vh1.shape, dtype=numpy.float64,order='C') 
     stft_vh[:] = copy.deepcopy(stft_vh1)
     stft_vl[:] = copy.deepcopy(stft_vl1)
-
+    #print(stft_vh.shape)
 
     lettuce_euler_macaroni = 0.057
     stft_vs = numpy.sort(stft_vl[0:36,:],axis=0) #sort the array
     entropy_unmasked = fast_entropy(stft_vs)
-    entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
+    entropy_unmasked[numpy.isnan(entropy_unmasked)] = 0
 
+    entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
+    
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return (stft_vh[:,64:128] * 1e-6).T
+      return (stft_vh[:,64:128] * 1e-5).T
 
 
     entropy[entropy<lettuce_euler_macaroni] = 0
@@ -238,40 +265,60 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     if nbins<22 and maxstreak<16:
         criteria_after = 0
     if criteria_before ==0 and criteria_after == 0:
-      return (stft_vh[:,64:128]  * 1e-6).T
+      return (stft_vh[:,64:128]  * 1e-5).T
 
 
     if criteria_before == 0 and numpy.sum(entropy[128:160]) == 0:
-      return (stft_vh[:,64:128]  * 1e-5)
-    #assume that if the first half of the upcoming frame is silent, then we don't need to consider
-    #some minor speech in the second half as an incentive to process the current frame
-
+      return (stft_vh[:,64:128]  * 1e-5).T
+    #so, we've concluded there is no reasonable activity happening except
+    #in the *last* part of the last frame
     if criteria_after == 0 and numpy.sum(entropy[32:64]) == 0:
       return (stft_vh[:,64:128]  * 1e-5).T
-    #assume likewise for the past. 
+    #or we've concluded there is no reasonable activity happening except in the first part of the first frame
+    #we could also reduce this to just 16 before and after and it would probably be fine
+    #the only purpose is to increase the chance that some fragmented activity is still processed
+    entropy = smoothgaps(entropy)
+    #all this does is fill in gaps of one sample size, and remove islands of one sample size.
+
+    
+    
 
 
     mask=numpy.zeros_like(stft_vh)
 
     stft_vh1 = stft_vh[0:36,:]
     thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
-    
+
     mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
     mask = mask[:,(64-16):(128+16)]
+
     #doing a bit of cropping delivers identical results with less cycles used.
-    mask = numpy_convolve_filter_longways(mask,5,17)
-    mask = mask[:,16:(64+16)] #further crop to the final mask size
-    mask2 = numpy_convolve_filter_topways(mask,5,2) 
-    mask2 = numpy.where(mask==0,0,mask2)
+    mask2 = numpy_convolve_filter_longways(mask,14,5)
+    mask2 = mask2[:,16:(64+16)] #further crop to the final mask size
+    mask2 = numpy_convolve_filter_topways(mask2,3,5) #save a few cycles- since we only need this
+
+    
+    mask3 = numpy_convolve_filter_longways(mask,7,5)
+    mask3 = mask3[:,16:(64+16)] #further crop to the final mask size
+    mask3 = numpy_convolve_filter_topways(mask3,5,5) 
+    
+    #using two different masks and then combining them doesn't necessarily offer much of a benefit.
+    #to bypass this or just test with the original method, just pass the second 
+
+
+    mask4 = (mask3 + mask2)/2
+
+    if numpy.ptp(mask4) > 0:
+        mask4 = (mask4 - numpy.nanmin(mask4))/numpy.ptp(mask4)
+        mask4[mask4<1e-5] = 1e-5
     #i think normalizing, is risky, because we're only taking the localized frame maximum.
     #this stands to risk causing some small fragments to be enhanced too much and perhaps distorting the results.
     #additionally, what's the maximum? it's *never* above 1.0, usually around 0.75-0.92
-    #adding a gain stage *after* filtration is generally a better idea than trying to compensate for it here.
-    #the choice of filler value 1e-5 is unknown. 
-    mask2[mask2<1e-5] = 1e-5
-    #mask2 = mask2[:,64:128]
-    return mask2.T
+    #adding a gain stage *after* filtration might be a better idea than trying to compensate for it here.
+    #however, we started with 1, we should end with 1. my testing *suggests* this doesn't actually hurt anything.
 
+    
+    return mask4.T
 
 class FilterThread(Thread):
     def __init__(self):
