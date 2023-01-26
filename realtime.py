@@ -106,7 +106,7 @@ def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
   for all in range(M):
        b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same")[:] / N)[:])/2
   d = d.T
-  return d[E:-E:]
+  return d[E:-E,:]
 
 def generate_true_logistic(points):
     fprint = numpy.linspace(0.0,1.0,points)
@@ -198,17 +198,16 @@ def smoothgaps(nums: numpy.ndarray):
            returns[0] = 1
       if returns[-1] == 0 and returns[-2] ==1:
         returns[-1] = 1
-
       if returns[1] == 0 and returns[0] == 1:
            returns[0] = 0
-      for num in range(1,nums.size-1):
-         if returns[num] == 1 and returns[num-1] == 0 and returns[num+1] ==0:
-           returns[num] = 0
       if returns[-1] == 1 and returns[-2] ==0:
         returns[-1] = 0
       for num in range(1,nums.size-1):
          if nums[num] == 0 and nums[num-1] == 1 and nums[num+1] ==1:
            returns[num] = 1
+      for num in range(1,nums.size-1):
+         if returns[num] == 1 and returns[num-1] == 0 and returns[num+1] ==0:
+           returns[num] = 0
 
 
       return returns
@@ -260,29 +259,12 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     maxstreak = longestConsecutive(entropy_before)
     if nbins<22 and maxstreak<16:
         criteria_before = 0
-    entropy_after = entropy[64:]
-    nbins = numpy.sum(entropy_before)
-    maxstreak = longestConsecutive(entropy_before)
+    nbins = numpy.sum(entrop)
+    maxstreak = longestConsecutive(entropy)
     if nbins<22 and maxstreak<16:
-        criteria_after = 0
-    if criteria_before ==0 and criteria_after == 0:
       return (stft_vh[:,64:128]  * 1e-5).T
-
-
-    if criteria_before == 0 and numpy.sum(entropy[128:160]) == 0:
-      return (stft_vh[:,64:128]  * 1e-5).T
-    #so, we've concluded there is no reasonable activity happening except
-    #in the *last* part of the last frame
-    if criteria_after == 0 and numpy.sum(entropy[32:64]) == 0:
-      return (stft_vh[:,64:128]  * 1e-5).T
-    #or we've concluded there is no reasonable activity happening except in the first part of the first frame
-    #we could also reduce this to just 16 before and after and it would probably be fine
-    #the only purpose is to increase the chance that some fragmented activity is still processed
     entropy = smoothgaps(entropy)
-    #all this does is fill in gaps of one sample size, and remove islands of one sample size.
-
-    
-    
+    #all this should do is fill in gaps of one sample size, and remove islands of one sample size.
 
 
     mask=numpy.zeros_like(stft_vh)
