@@ -278,9 +278,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     #additionally, what's the maximum? it's *never* above 1.0, usually around 0.75-0.92
     #adding a gain stage *after* filtration is generally a better idea than trying to compensate for it here.
     #the choice of filler value 1e-5 is unknown. 
-    if numpy.ptp(mask2) > 0:
-        mask2 = (mask2 - numpy.nanmin(mask2))/numpy.ptp(mask2)
-        mask2[mask2<1e-5] = 1e-5
+    mask2[mask2<1e-5] = 1e-5
 
     return mask2.T
 
