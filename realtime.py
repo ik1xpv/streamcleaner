@@ -106,7 +106,7 @@ def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
   for all in range(M):
        b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same")[:] / N)[:])/2
   d = d.T
-  return d[E:-E,:]
+  return d[E:-E:]
 
 def generate_true_logistic(points):
     fprint = numpy.linspace(0.0,1.0,points)
@@ -191,6 +191,7 @@ def longestConsecutive(nums: numpy.ndarray):
             streak = 0
         return max(streak,prevstreak)
 
+
 @numba.njit(numba.int32[:](numba.int32[:]))
 def smoothgaps(nums: numpy.ndarray):
       returns = nums.copy()
@@ -211,10 +212,6 @@ def smoothgaps(nums: numpy.ndarray):
 
 
       return returns
-          
-          
-
-
 
 import copy
 
@@ -232,15 +229,14 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     stft_vl = numpy.ndarray(shape=stft_vh1.shape, dtype=numpy.float64,order='C') 
     stft_vh[:] = copy.deepcopy(stft_vh1)
     stft_vl[:] = copy.deepcopy(stft_vl1)
-    #print(stft_vh.shape)
+
 
     lettuce_euler_macaroni = 0.057
     stft_vs = numpy.sort(stft_vl[0:36,:],axis=0) #sort the array
     entropy_unmasked = fast_entropy(stft_vs)
     entropy_unmasked[numpy.isnan(entropy_unmasked)] = 0
-
     entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
-    
+
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
@@ -254,52 +250,39 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     criteria_before = 1
     criteria_after = 1
 
-    entropy_before = entropy[0:128]
-    nbins = numpy.sum(entropy_before)
-    maxstreak = longestConsecutive(entropy_before)
-    if nbins<22 and maxstreak<16:
-        criteria_before = 0
-    nbins = numpy.sum(entrop)
-    maxstreak = longestConsecutive(entropy)
+    entropy_minimal = entropy[64-32:128+32] #concluded 
+    nbins = numpy.sum(entropy_minimal)
+    maxstreak = longestConsecutive(entropy_minimal)
     if nbins<22 and maxstreak<16:
       return (stft_vh[:,64:128]  * 1e-5).T
-    entropy = smoothgaps(entropy)
-    #all this should do is fill in gaps of one sample size, and remove islands of one sample size.
+    #what this will do is simply reduce the amount of work slightly
 
+    entropy = smoothgaps(entropy)
+    #remove anomalies
 
     mask=numpy.zeros_like(stft_vh)
 
     stft_vh1 = stft_vh[0:36,:]
     thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
-
-    mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
-    mask = mask[:,32:160]
-
-    #doing a bit of cropping delivers identical results with less cycles used.
-
-    mask2 = numpy_convolve_filter_longways(mask,14,5)
-    mask2 = mask[:,32:96]
-    mask2 = numpy_convolve_filter_topways(mask2,3,5) 
-
     
-    mask3 = numpy_convolve_filter_longways(mask,7,5)
-    mask3 = mask3[:,32:96]
-    mask3 = numpy_convolve_filter_topways(mask3,5,5) 
+    mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
+    mask = mask[:,(64-16):(128+16)]
+    #doing a bit of cropping delivers identical results with less cycles used.
+    mask = numpy_convolve_filter_longways(mask,5,17)
+    mask = mask[:,16:(64+16)] #further crop to the final mask size
+    mask2 = numpy_convolve_filter_topways(mask,5,2) 
+    mask2 = numpy.where(mask==0,0,mask2)
 
-    mask4 = (mask3 + mask2)/2
-
-    if numpy.ptp(mask4) > 0:
-        mask4 = (mask4 - numpy.nanmin(mask4))/numpy.ptp(mask4)
-        mask4[mask4<1e-5] = 1e-5
     #i think normalizing, is risky, because we're only taking the localized frame maximum.
     #this stands to risk causing some small fragments to be enhanced too much and perhaps distorting the results.
     #additionally, what's the maximum? it's *never* above 1.0, usually around 0.75-0.92
-    #adding a gain stage *after* filtration might be a better idea than trying to compensate for it here.
-    #however, we started with 1, we should end with 1. my testing *suggests* this doesn't actually hurt anything.
+    #adding a gain stage *after* filtration is generally a better idea than trying to compensate for it here.
+    #the choice of filler value 1e-5 is unknown. 
+    if numpy.ptp(mask2) > 0:
+        mask2 = (mask2 - numpy.nanmin(mask2))/numpy.ptp(mask2)
+        mask2[mask2<1e-5] = 1e-5
 
-    
-    return mask4.T
-
+    return mask2.T
 
 
 class FilterThread(Thread):
