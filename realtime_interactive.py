@@ -213,6 +213,27 @@ def longestConsecutive(nums: numpy.ndarray):
 
 import copy
 
+@numba.njit(numba.int32[:](numba.int32[:]))
+def smoothgaps(nums: numpy.ndarray):
+      returns = nums.copy()
+      if returns[1] == 1 and returns[0] == 0:
+           returns[0] = 1
+      if returns[-1] == 0 and returns[-2] ==1:
+        returns[-1] = 1
+      if returns[1] == 0 and returns[0] == 1:
+           returns[0] = 0
+      if returns[-1] == 1 and returns[-2] ==0:
+        returns[-1] = 0
+      for num in range(1,nums.size-1):
+         if nums[num] == 0 and nums[num-1] == 1 and nums[num+1] ==1:
+           returns[num] = 1
+      for num in range(1,nums.size-1):
+         if returns[num] == 1 and returns[num-1] == 0 and returns[num+1] ==0:
+           returns[num] = 0
+
+
+      return returns
+
 def update_gui( stft_in, stft_out):
     #generates the GUI images 
     scale = 0.1
@@ -250,12 +271,13 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     lettuce_euler_macaroni = 0.057
     stft_vs = numpy.sort(stft_vl[0:N_BINS,:],axis=0) #sort the array
     entropy_unmasked = fast_entropy(stft_vs)
+    entropy_unmasked[numpy.isnan(entropy_unmasked)] = 0
     entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
 
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return (stft_vh[:,64:128] * 1e-6).T
+      return (stft_vh[:,64:128] * 1e-5).T
 
 
     entropy[entropy<lettuce_euler_macaroni] = 0
@@ -265,18 +287,15 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     criteria_before = 1
     criteria_after = 1
 
-    entropy_before = entropy[0:128] 
-    nbins = numpy.sum(entropy_before)
-    maxstreak = longestConsecutive(entropy_before)
+    entropy_minimal = entropy[64-32:128+32] #concluded 
+    nbins = numpy.sum(entropy_minimal)
+    maxstreak = longestConsecutive(entropy_minimal)
     if nbins<22 and maxstreak<16:
-        criteria_before = 0
-    entropy_after = entropy[128:]
-    nbins = numpy.sum(entropy_after)
-    maxstreak = longestConsecutive(entropy_after)
-    if nbins<22 and maxstreak<16:
-        criteria_after = 0
-    if criteria_before ==0 and criteria_after == 0:
-      return (stft_vh[:,64:128] * 1e-6).T
+      return (stft_vh[:,64:128]  * 1e-5).T
+    #what this will do is simply reduce the amount of work slightly
+
+    entropy = smoothgaps(entropy)
+    #remove anomalies
 
     mask=numpy.zeros_like(stft_vh)
 
@@ -284,15 +303,21 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:N_BINS,:].flatten())])/2
 
     mask[0:N_BINS,:] = fast_peaks(stft_vh[0:N_BINS,:],entropy,thresh,entropy_unmasked)
-    
+    mask = mask[:,(64-16):(128+16)]
+    #doing a bit of cropping delivers identical results with less cycles used.
     mask = numpy_convolve_filter_longways(mask,5,17)
-    mask2 = numpy_convolve_filter_topways(mask,5,2)
+    mask = mask[:,16:(64+16)] #further crop to the final mask size
+    mask2 = numpy_convolve_filter_topways(mask,5,2) 
     mask2 = numpy.where(mask==0,0,mask2)
-    mask2 = (mask2 - numpy.nanmin(mask2)) / numpy.ptp(mask2) #normalize to 1.0
-    mask2[mask2<1e-6] = 1e-6
 
-    mask3 = mask2[:,64:128]
-    return mask3.T
+    #i think normalizing, is risky, because we're only taking the localized frame maximum.
+    #this stands to risk causing some small fragments to be enhanced too much and perhaps distorting the results.
+    #additionally, what's the maximum? it's *never* above 1.0, usually around 0.75-0.92
+    #adding a gain stage *after* filtration is generally a better idea than trying to compensate for it here.
+    #the choice of filler value 1e-5 is unknown. 
+    mask2[mask2<1e-5] = 1e-5
+
+    return mask2.T
 
 class FilterThread(Thread):
     def __init__(self):
