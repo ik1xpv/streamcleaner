@@ -290,7 +290,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     mask2 = (mask2 - numpy.nanmin(mask2))/numpy.ptp(mask2)
     mask2[mask2<residue] = residue
 
-    return mask2.T
+    return mask2[:,64:128].T
 
 
 class FilterThread(Thread):
