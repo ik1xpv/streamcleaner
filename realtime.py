@@ -252,7 +252,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     stft_vs = numpy.sort(stft_vl[0:36,:],axis=0) #sort the array
     entropy_unmasked = fast_entropy(stft_vs)
     entropy_unmasked[numpy.isnan(entropy_unmasked)] = 0
-    entropy = smoothpadded(entropy_unmasked,14).astype(dtype=numpy.float64)
+    entropy = smoothpadded(entropy_unmasked,3).astype(dtype=numpy.float64)
 
     factor = numpy.max(entropy)
 
@@ -263,9 +263,6 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
     entropy = entropy.astype(dtype=numpy.int32)
-
-    criteria_before = 1
-    criteria_after = 1
 
     entropy_minimal = entropy[64-32:128+32] #concluded 
     nbins = numpy.sum(entropy_minimal)
