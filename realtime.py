@@ -307,7 +307,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     mask2 = numpy_convolve_filter_topways(mask2[:,16:-16],3,3) 
     mask2[mask2<residue] = residue
 
-    return mask2[:,64:128].T
+    return mask2.T
 
 
 class FilterThread(Thread):
