@@ -57,7 +57,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 import os
 import numba
 import numpy
-import scipy
 
 import pyroomacoustics as pra
 from threading import Thread
@@ -304,8 +303,8 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
     mask[0:36,:] = fast_peaks(stft_vh1,entropy,thresh,entropy_unmasked)
     mask = sawtooth_filter(mask)
-    mask = numpy_convolve_filter_longways(mask,15,2)
-    mask2 = numpy_convolve_filter_topways(mask,5,2)     
+    mask2 = numpy_convolve_filter_longways(mask[:,(64-16):(128+16)],13,3)
+    mask2 = numpy_convolve_filter_topways(mask2[:,16:-16],3,3) 
     mask2[mask2<residue] = residue
 
     return mask2[:,64:128].T
