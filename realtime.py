@@ -146,10 +146,31 @@ def generate_hann(M, sym=True):
         w += a[k] * numpy.cos(k * fac)
     return w
 
-def filter_1(data):
-    E= 14 *2
+def generate_sawtooth_filter(size):
+  if size ==1:
+      return 1
+  if size ==2:
+      return numpy.asarray([0.5,0.5])
+  if size ==3:
+      return numpy.asarray([0.2,0.6,0.2])
+
+  fprint = numpy.linspace(0.0,1.0,size)
+  if size % 2:
+    e = numpy.linspace(0.0,1.0,(size+1)//2)
+    result = numpy.zeros(size)
+    result[0:(size+1)//2] = e
+    result[(size+1)//2:] = e[0:-1][::-1]
+    return result
+  else:
+    e = numpy.linspace(0.0,1.0,(size+1)//2)
+    e = numpy.hstack((e,e[::-1]))
+    return e
+
+wavelet_data = numpy.asarray([0.,0.14285714,0.28571429,0.42857143,0.57142857,0.71428571,0.85714286,1.,0.85714286,0.71428571,0.57142857,0.42857143,0.28571429,0.14285714,0.])
+def sawtooth_filter(data):
+    E= 15 *2
     working = numpy.pad(array=data,pad_width=((E,E),(E,E)),mode="constant")  
-    wavelet_data = generate_logit_window(14)
+    #wavelet_data = generate_sawtooth_filter(15)
     working2 = working.flatten()
     working2 = numpy.convolve(working2, wavelet_data, mode='same')
     working = working2.reshape(working.shape)
@@ -279,10 +300,10 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
     stft_vh1 = stft_vh[0:36,:]
     thresh = threshold(stft_vh1[stft_vh1>residue])/2
-    stft_vh1 = filter_1(stft_vh1)
+    stft_vh1 = sawtooth_filter(stft_vh1)
 
     mask[0:36,:] = fast_peaks(stft_vh1,entropy,thresh,entropy_unmasked)
-    mask = filter_1(mask)
+    mask = sawtooth_filter(mask)
     mask = numpy_convolve_filter_longways(mask,5,17)
     mask2 = numpy_convolve_filter_topways(mask,5,2)     
     mask2 = (mask2 - numpy.nanmin(mask2))/numpy.ptp(mask2)
