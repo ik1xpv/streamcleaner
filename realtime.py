@@ -301,7 +301,7 @@ class FilterThread(Thread):
         self.NBINS=36
         self.hop = 128
         self.hann = generate_hann(self.NFFT)
-        self.logistic = generate_logit_window(self.NFFT)
+        self.logistic = generate_logit_window(0,self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
         self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
