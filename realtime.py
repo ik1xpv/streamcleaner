@@ -25,7 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #additional code contributed by Justin Engel
 #idea and code and bugs by Joshuah Rainstar, Oscar Steila
 #https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#realtime.py 1.0 - 1/18/23 - it works.
+#realtime.py 1.2 - 2/5/23 -  fine tuning has met with some success.
 
 #How to use this file:
 #you will need 1 virtual audio cable- try https://vb-audio.com/Cable/ if you use windows.
