@@ -57,6 +57,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 import os
 import numba
 import numpy
+import scipy
 
 import pyroomacoustics as pra
 from threading import Thread
@@ -109,6 +110,13 @@ def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
   return d[E:-E:]
 
 def generate_true_logistic(points):
+    if points ==1:
+      return 1
+    if points ==2:
+      return numpy.asarray([0.5,0.5])
+    if points ==3:
+      return numpy.asarray([0.2,0.6,0.2])
+
     fprint = numpy.linspace(0.0,1.0,points)
     fprint[1:-1]  /= 1 - fprint[1:-1]
     fprint[1:-1]  = numpy.log(fprint[1:-1])
@@ -116,10 +124,8 @@ def generate_true_logistic(points):
     fprint[0] = -fprint[-1]
     return numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
 
-def generate_logit_window(size,sym =True):
-  if sym == False or size<32:
-    print("not supported")
-    return numpy.zeros(size)
+
+def generate_logit_window(a,size,sym =True):
   if size % 2:
     e = generate_true_logistic((size+1)//2)
     result = numpy.zeros(size)
@@ -139,6 +145,15 @@ def generate_hann(M, sym=True):
     for k in range(len(a)):
         w += a[k] * numpy.cos(k * fac)
     return w
+
+def cwt_filter(data):
+    E= 14
+    working = numpy.pad(array=data,pad_width=((E,E),(E,E)),mode="constant")  
+    widths = [14,]
+    M = scipy.signal.cwt(working.flatten(), generate_logit_window, widths)
+    N = M[0].reshape(working.shape)
+    working = N/7 #half of widths
+    return working[E:-E:,E:-E:]
 
 
 @numba.njit(numba.float64[:](numba.float64[:,:]))
@@ -229,7 +244,9 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     stft_vl = numpy.ndarray(shape=stft_vh1.shape, dtype=numpy.float64,order='C') 
     stft_vh[:] = copy.deepcopy(stft_vh1)
     stft_vl[:] = copy.deepcopy(stft_vl1)
-
+    residue = man(stft_vl[0:36,:].flatten())
+    residue = (residue - numpy.nanmin(stft_vl)) / numpy.ptp(stft_vl)
+    residue = residue/100 #the exact amount to reduce this to is unclear
 
     lettuce_euler_macaroni = 0.057
     stft_vs = numpy.sort(stft_vl[0:36,:],axis=0) #sort the array
@@ -263,22 +280,15 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
     mask=numpy.zeros_like(stft_vh)
 
     stft_vh1 = stft_vh[0:36,:]
-    thresh = threshold(stft_vh1[stft_vh1>man(stft_vl[0:36,:].flatten())])/2
-    
-    mask[0:36,:] = fast_peaks(stft_vh[0:36,:],entropy,thresh,entropy_unmasked)
-    mask = mask[:,(64-16):(128+16)]
-    #doing a bit of cropping delivers identical results with less cycles used.
-    mask = numpy_convolve_filter_longways(mask,5,17)
-    mask = mask[:,16:(64+16)] #further crop to the final mask size
-    mask2 = numpy_convolve_filter_topways(mask,5,2) 
-    mask2 = numpy.where(mask==0,0,mask2)
+    thresh = threshold(stft_vh1[stft_vh1>residue])/2
+    stft_vh1 = cwt_filter(stft_vh1)
 
-    #i think normalizing, is risky, because we're only taking the localized frame maximum.
-    #this stands to risk causing some small fragments to be enhanced too much and perhaps distorting the results.
-    #additionally, what's the maximum? it's *never* above 1.0, usually around 0.75-0.92
-    #adding a gain stage *after* filtration is generally a better idea than trying to compensate for it here.
-    #the choice of filler value 1e-5 is unknown. 
-    mask2[mask2<1e-5] = 1e-5
+    mask[0:36,:] = fast_peaks(stft_vh1,entropy,thresh,entropy_unmasked)
+    mask = cwt_filter(mask)
+    mask = numpy_convolve_filter_longways(mask,5,17)
+    mask2 = numpy_convolve_filter_topways(mask,5,2)     
+    mask2 = (mask2 - numpy.nanmin(mask2))/numpy.ptp(mask2)
+    mask2[mask2<residue] = residue
 
     return mask2.T
 
