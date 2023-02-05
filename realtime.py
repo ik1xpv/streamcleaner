@@ -125,7 +125,7 @@ def generate_true_logistic(points):
     return numpy.interp(fprint, (fprint[0], fprint[-1]),  (0, 1))
 
 
-def generate_logit_window(a,size,sym =True):
+def generate_logit_window(size,sym =True):
   if size % 2:
     e = generate_true_logistic((size+1)//2)
     result = numpy.zeros(size)
@@ -146,14 +146,15 @@ def generate_hann(M, sym=True):
         w += a[k] * numpy.cos(k * fac)
     return w
 
-def cwt_filter(data):
-    E= 14
+def filter_1(data):
+    E= 14 *2
     working = numpy.pad(array=data,pad_width=((E,E),(E,E)),mode="constant")  
-    widths = [14,]
-    M = scipy.signal.cwt(working.flatten(), generate_logit_window, widths)
-    N = M[0].reshape(working.shape)
-    working = N/7 #half of widths
-    return working[E:-E:,E:-E:]
+    wavelet_data = generate_logit_window(14)
+    working2 = working.flatten()
+    working2 = numpy.convolve(working2, wavelet_data, mode='same')
+    working = working2.reshape(working.shape)
+    working = working/7
+    return  working[E:-E:,E:-E:]
 
 
 @numba.njit(numba.float64[:](numba.float64[:,:]))
@@ -278,10 +279,10 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
     stft_vh1 = stft_vh[0:36,:]
     thresh = threshold(stft_vh1[stft_vh1>residue])/2
-    stft_vh1 = cwt_filter(stft_vh1)
+    stft_vh1 = filter_1(stft_vh1)
 
     mask[0:36,:] = fast_peaks(stft_vh1,entropy,thresh,entropy_unmasked)
-    mask = cwt_filter(mask)
+    mask = filter_1(mask)
     mask = numpy_convolve_filter_longways(mask,5,17)
     mask2 = numpy_convolve_filter_topways(mask,5,2)     
     mask2 = (mask2 - numpy.nanmin(mask2))/numpy.ptp(mask2)
@@ -298,7 +299,7 @@ class FilterThread(Thread):
         self.NBINS=36
         self.hop = 128
         self.hann = generate_hann(self.NFFT)
-        self.logistic = generate_logit_window(0,self.NFFT)
+        self.logistic = generate_logit_window(self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
         self.oneshot_hann = pra.transform.STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
