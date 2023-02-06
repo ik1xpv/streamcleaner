@@ -332,9 +332,8 @@ class FilterThread(Thread):
            self.audio[-8192:] = data[:]
            logit = self.oneshot_logit.analysis(self.audio)
            hann = self.oneshot_hann.analysis(self.audio)
-           self.stft.analysis(self.audio[8192:-8192])
            mask = mask_generation(numpy.abs(hann).T,numpy.abs(logit).T,self.NBINS)
-           output = self.stft.synthesis(self.stft.X* mask)
+           output = self.stft.synthesis(hann[64:128,:]* mask)
            return output
   
     def stop(self):
