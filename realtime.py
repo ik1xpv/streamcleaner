@@ -188,15 +188,16 @@ def fast_entropy(data: numpy.ndarray):
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
+@numba.njit(numba.float64(numba.int64))
+def determine_entropy_maximum(size:int):
+     logit = generate_true_logistic(size)
+     d = numpy.zeros(size)
+     d[-1] = 1
+     return  1 - numpy.corrcoef(d,logit)[0,1] 
+
 
 @numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int32[:],numba.float64,numba.float64[:]))
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,entropy_unmasked:numpy.ndarray):
-    #0.01811 practical lowest - but the absolute lowest is 0. 0 is a perfect logistic. 
-    #0.595844362 practical highest - an array of zeros with 1 value of 1.
-    #note: this calculation is dependent on the size of the logistic array.
-    #if you change the number of bins, this constraint will no longer hold and renormalizing will fail.
-    #a lookup table is not provided, however the value can be derived by setting up a one-shot fast_entropy that only considers one array,
-    #sorting, interpolating, and comparing it. 
     mask = numpy.zeros_like(stft_)
     for each in numba.prange(stft_.shape[1]):
         data = stft_[:,each].copy()
@@ -204,7 +205,8 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,en
             mask[0:36,each] =  0
             continue #skip the calculations for this row, it's masked already
         constant = atd(data) + man(data)  #by inlining the calls higher in the function, it only ever sees arrays of one size and shape, which optimizes the code
-        test = entropy_unmasked[each]  / 0.6091672572096941 #currently set for 36 bins
+        test = entropy_unmasked[each]  / 0.6091672572096941 #currently set for 36 bins, if you change the number of bins, or use a dynamic setting,
+        #replace this number with a call to determine_entropy_maximum - it will range from 0.50 to 0.75 depending on the size from 16-256
         test = abs(test - 1) 
         thresh1 = (thresh*test)
         if numpy.isnan(thresh1):
