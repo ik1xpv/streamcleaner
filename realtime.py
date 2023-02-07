@@ -188,15 +188,14 @@ def fast_entropy(data: numpy.ndarray):
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
    return entropy
 
-@numba.njit(numba.float64(numba.int64))
-def determine_entropy_maximum(size:int):
-     logit = generate_true_logistic(size)
-     d = numpy.zeros(size)
-     d[-1] = 1
-     return  1 - numpy.corrcoef(d,logit)[0,1] 
 
+#def determine_entropy_maximum(size:int):
+#     logit = generate_true_logistic(size)
+#     d = numpy.zeros(size)
+ #    d[-1] = 1
+ #    return  1 - numpy.corrcoef(d,logit)[0,1] 
 
-@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int32[:],numba.float64,numba.float64[:]))
+@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64[:],numba.float64,numba.float64[:]))
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,entropy_unmasked:numpy.ndarray):
     mask = numpy.zeros_like(stft_)
     for each in numba.prange(stft_.shape[1]):
@@ -217,39 +216,28 @@ def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,en
         mask[0:36,each] = data[:]
     return mask
 
-@numba.njit(numba.int32(numba.int32[:]))
-def longestConsecutive(nums: numpy.ndarray):
-        streak = 0
-        prevstreak = 0
-        for num in range(nums.size):
-          if nums[num] == 1:
-            streak += 1
-          if nums[num] == 0:
-            prevstreak = max(streak,prevstreak)
-            streak = 0
-        return max(streak,prevstreak)
 
-
-@numba.njit(numba.int32[:](numba.int32[:]))
-def smoothgaps(nums: numpy.ndarray):
-      returns = nums.copy()
-      if returns[1] == 1 and returns[0] == 0:
-           returns[0] = 1
-      if returns[-1] == 0 and returns[-2] ==1:
-        returns[-1] = 1
-      if returns[1] == 0 and returns[0] == 1:
-           returns[0] = 0
-      if returns[-1] == 1 and returns[-2] ==0:
-        returns[-1] = 0
-      for num in range(1,nums.size-1):
-         if nums[num] == 0 and nums[num-1] == 1 and nums[num+1] ==1:
-           returns[num] = 1
-      for num in range(1,nums.size-1):
-         if returns[num] == 1 and returns[num-1] == 0 and returns[num+1] ==0:
-           returns[num] = 0
-
-
-      return returns
+@numba.jit(numba.int64[:](numba.int64[:],numba.int64,numba.int64,numba.int64))
+def process_row(a:numpy.ndarray, value:int, threshold, replace):
+    first = 0
+    end = 0
+    index = 0
+    while first < a.size:
+        if a[first]==value:
+            index = first
+            while index<a.size and a[index]==value:
+              index += 1
+            end = index
+            if end-first+1 < threshold:
+              for i in range(first, end):
+                a[i] = replace
+            first = end
+        else:
+            index = first
+            while index<a.size and a[index]!=value:
+               index += 1
+            first = index
+    return a
 
 import copy
 
@@ -285,7 +273,7 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
 
     entropy[entropy<lettuce_euler_macaroni] = 0
     entropy[entropy>0] = 1
-    entropy = entropy.astype(dtype=numpy.int32)
+    entropy = entropy.astype(dtype=numpy.int64)
 
     entropy_minimal = entropy[64-32:128+32] #concluded 
     nbins = numpy.sum(entropy_minimal)
@@ -294,7 +282,8 @@ def mask_generation(stft_vh1:numpy.ndarray,stft_vl1: numpy.ndarray,NBINS:int):
       return (stft_vh[:,64:128]  * 1e-5).T
     #what this will do is simply reduce the amount of work slightly
 
-    entropy = smoothgaps(entropy)
+    entropy = process_row(entropy,0,6,1)
+    entropy = process_row(entropy,1,2,0)
     #remove anomalies
 
     mask=numpy.zeros_like(stft_vh)
