@@ -1,3 +1,4 @@
+from __future__ import division
 '''
 Copyright 2022 Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
@@ -30,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #correct positioning of the DFT, per https://dsp.stackexchange.com/a/72590/50076, and therefore our error is reduced.
 #this required a one-line modification to pyroomacoustic's DFT class in order to be compatible.
 #implementing the changes during STFT formation proved too complex due to different approaches being used.
+#new denoising filter!
 
 #How to use this file:
 #you will need 1 virtual audio cable- try https://vb-audio.com/Cable/ if you use windows.
@@ -70,7 +72,6 @@ import pyaudio
 import dearpygui.dearpygui as dpg
 
 
-from __future__ import division
 
 import numpy as np
 from numpy.lib.stride_tricks import as_strided as _as_strided
@@ -1127,6 +1128,27 @@ def sawtooth_filter(data):
     working = working/7
     return  working[E:-E:,E:-E:]
 
+def denoise_probable(working: numpy.ndarray):
+  weights = numpy.zeros_like(working)
+  e =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working-weights)
+  smoothed = sawtooth_filter(e)
+  weights = numpy.abs(working-smoothed) #save the difference
+
+  smoothed =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working/weights)
+  smoothed = sawtooth_filter(smoothed)
+  weights = numpy.abs(working-smoothed) + weights #save the difference
+
+  smoothed =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working/weights)
+  smoothed = sawtooth_filter(smoothed)
+  weights = numpy.abs(working-smoothed) + weights #save the difference
+
+  smoothed =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working/weights)
+  smoothed = sawtooth_filter(smoothed)
+
+  result = numpy.abs(working-smoothed)
+  result= (result - numpy.nanmin(result)) /numpy.ptp(result)
+  result = result * numpy.ptp(working)
+  return numpy.minimum(result,working)
 
 @numba.njit(numba.float64[:](numba.float64[:,:]))
 def fast_entropy(data: numpy.ndarray):
@@ -1229,7 +1251,7 @@ def mask_generation(stft_vh:numpy.ndarray,stft_vl: numpy.ndarray,NBINS:int):
     factor = numpy.max(entropy)
 
     if factor < lettuce_euler_macaroni: 
-      return (stft_vh[:,64:128] * 1e-5).T
+      return (stft_vh[:,64:128] * 1e-5)
 
 
     entropy[entropy<lettuce_euler_macaroni] = 0
@@ -1240,7 +1262,7 @@ def mask_generation(stft_vh:numpy.ndarray,stft_vl: numpy.ndarray,NBINS:int):
     nbins = numpy.sum(entropy_minimal)
     maxstreak = longestConsecutive(entropy_minimal)
     if nbins<22 and maxstreak<16:
-      return (stft_vh[:,64:128]  * 1e-5).T
+      return (stft_vh[:,64:128]  * 1e-5)
     #what this will do is simply reduce the amount of work slightly
 
     entropy = process_row(entropy,0,6,1)
@@ -1251,6 +1273,8 @@ def mask_generation(stft_vh:numpy.ndarray,stft_vl: numpy.ndarray,NBINS:int):
 
     stft_vh1 = stft_vh[0:36,:]
     thresh = threshold(stft_vh1[stft_vh1>residue])/2
+    stft_vh1 = denoise_probable(stft_vh1)
+
     stft_vh1 = sawtooth_filter(stft_vh1)
 
     mask[0:36,:] = fast_peaks(stft_vh1,entropy,thresh,entropy_unmasked)
@@ -1259,7 +1283,7 @@ def mask_generation(stft_vh:numpy.ndarray,stft_vl: numpy.ndarray,NBINS:int):
     mask2 = numpy_convolve_filter_topways(mask2[:,16:-16],3,3) 
     mask2[mask2<residue] = residue
 
-    return mask2.T
+    return mask2
 
 
 class FilterThread(Thread):
