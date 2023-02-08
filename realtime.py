@@ -1039,27 +1039,9 @@ def moving_average(x, w):
     return numpy.convolve(x, numpy.ones(w), 'same') / w
 
 def smoothpadded(data: numpy.ndarray,n:float):
-  o = numpy.pad(data, n*2, mode='median')
+  o = numpy.pad(data, n*2, mode='constant')
   return moving_average(o,n)[n*2: -n*2]
 
-def numpy_convolve_filter_longways(data: numpy.ndarray,N:int,M:int):
-  E = N*2
-  d = numpy.pad(array=data,pad_width=((0,0),(E,E)),mode="constant")  
-  b = numpy.ravel(d)  
-  for all in range(M):
-       b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:])/2
-  return d[:,E:-E]
-#after i got the padding right.. this retuns identical results in a fraction of the time!
-
-def numpy_convolve_filter_topways(data: numpy.ndarray,N:int,M:int):
-  E = N*2
-  d = numpy.pad(array=data,pad_width=((E,E),(0,0)),mode="constant")  
-  d = d.T.copy()  
-  b = numpy.ravel(d)  
-  for all in range(M):
-       b[:] = ( b[:]  + (numpy.convolve(b[:], numpy.ones(N),mode="same")[:] / N)[:])/2
-  d = d.T
-  return d[E:-E:]
 
 def generate_true_logistic(points):
     if points ==1:
@@ -1129,27 +1111,31 @@ def sawtooth_filter(data):
     working = working/7
     return  working[E:-E:,E:-E:]
 
-def denoise_probable(working: numpy.ndarray):
-  weights = numpy.zeros_like(working)
-  e =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working-weights)
-  smoothed = sawtooth_filter(e)
-  weights = numpy.abs(working-smoothed) #save the difference
 
-  smoothed =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working/weights)
-  smoothed = sawtooth_filter(smoothed)
-  weights = numpy.abs(working-smoothed) + weights #save the difference
+def renormalize(data,previous):
+  data = data - numpy.nanmin(data)
+  data = data/numpy.ptp(data)
+  data = data * numpy.ptp(previous)
+  return data
 
-  smoothed =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working/weights)
-  smoothed = sawtooth_filter(smoothed)
-  weights = numpy.abs(working-smoothed) + weights #save the difference
+def convolve_custom_filter_2d(data: numpy.ndarray,N:int,M:int,O:int):
+  E = N*2
+  F = M*2
+  padded = numpy.pad(array=data,pad_width=((F,F),(E,E)),mode="constant")  
+  normal = padded.copy()
+  normal_t = padded.T.copy()
+  b = numpy.ravel(normal)
+  c = numpy.ravel(normal_t)
 
-  smoothed =   numpy.random.normal(numpy.median(working),threshold(working.flatten()),(working.shape)) + (working/weights)
-  smoothed = sawtooth_filter(smoothed)
-
-  result = numpy.abs(working-smoothed)
-  result= (result - numpy.nanmin(result)) /numpy.ptp(result)
-  result = result * numpy.ptp(working)
-  return numpy.minimum(result,working)
+  for all in range(O):
+      normal = padded.copy()
+      normal_t = padded.T.copy()
+      b = numpy.ravel(normal)
+      c = numpy.ravel(normal_t)
+      b[:] = (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:]
+      c[:] =  (numpy.convolve(c[:], numpy.ones(M),mode="same") / M)[:]
+      padded = (normal + normal_t.T.copy())
+  return renormalize(padded[F:-F,E:-E],data)
 
 @numba.njit(numba.float64[:](numba.float64[:,:]))
 def fast_entropy(data: numpy.ndarray):
@@ -1224,9 +1210,7 @@ def process_row(a:numpy.ndarray, value:int, threshold, replace):
             first = index
     return a
 
-import copy
-
-def mask_generation(stft_vh:numpy.ndarray,stft_vl: numpy.ndarray,NBINS:int):
+def mask_generation(stft:numpy.ndarray,NBINS:int):
 
     #24000/256 = 93.75 hz per frequency bin.
     #a 4000 hz window(the largest for SSB is roughly 43 bins.
@@ -1237,54 +1221,37 @@ def mask_generation(stft_vh:numpy.ndarray,stft_vl: numpy.ndarray,NBINS:int):
     #we automatically set all other bins to the residue value.
     #reconstruction or upsampling of this reduced bandwidth signal is a different problem we dont solve here.
     
-    
-    
-    residue = man(stft_vl[0:36,:].flatten())
-    residue = (residue - numpy.nanmin(stft_vl)) / numpy.ptp(stft_vl)
-    residue = residue/100 #the exact amount to reduce this to is unclear
-
+    flag = 0
     lettuce_euler_macaroni = 0.057
-    stft_vs = numpy.sort(stft_vl[0:36,:],axis=0) #sort the array
-    entropy_unmasked = fast_entropy(stft_vs)
+
+    mask = numpy.zeros_like(stft)
+    stft = stft[0:36,:]
+
+    entropy_unmasked = fast_entropy(numpy.sort(stft,axis=0))
     entropy_unmasked[numpy.isnan(entropy_unmasked)] = 0
     entropy = smoothpadded(entropy_unmasked,3).astype(dtype=numpy.float64)
 
-    factor = numpy.max(entropy)
+    if numpy.max(entropy) > lettuce_euler_macaroni: 
+      entropy[entropy<lettuce_euler_macaroni] = 0
+      entropy[entropy>0] = 1
+      entropy = entropy.astype(dtype=numpy.int64)
 
-    if factor < lettuce_euler_macaroni: 
-      return (stft_vh[:,64:128] * 1e-5)
+      entropy_minimal = entropy[64-32:128+32] #concluded 
+      nbins = numpy.sum(entropy_minimal)
+      maxstreak = longestConsecutive(entropy_minimal)
+      if nbins>22 or maxstreak>16:
+          flag = 1
+          flat  = numpy.ravel(stft)
+          thresh = threshold(flat[flat>man(flat)])
+          entropy = process_row(entropy,0,6,1)
+          entropy = process_row(entropy,1,2,0)
 
+          mask[0:36,:] = fast_peaks(stft,entropy,thresh,entropy_unmasked)
 
-    entropy[entropy<lettuce_euler_macaroni] = 0
-    entropy[entropy>0] = 1
-    entropy = entropy.astype(dtype=numpy.int64)
+          mask = sawtooth_filter(mask)
+          mask = convolve_custom_filter_2d(mask,13,3,3)
 
-    entropy_minimal = entropy[64-32:128+32] #concluded 
-    nbins = numpy.sum(entropy_minimal)
-    maxstreak = longestConsecutive(entropy_minimal)
-    if nbins<22 and maxstreak<16:
-      return (stft_vh[:,64:128]  * 1e-5)
-    #what this will do is simply reduce the amount of work slightly
-
-    entropy = process_row(entropy,0,6,1)
-    entropy = process_row(entropy,1,2,0)
-    #remove anomalies
-
-    mask=numpy.zeros_like(stft_vh)
-
-    stft_vh1 = stft_vh[0:36,:]
-    thresh = threshold(stft_vh1[stft_vh1>residue])/2
-    stft_vh1 = denoise_probable(stft_vh1)
-
-    stft_vh1 = sawtooth_filter(stft_vh1)
-
-    mask[0:36,:] = fast_peaks(stft_vh1,entropy,thresh,entropy_unmasked)
-    mask = sawtooth_filter(mask)
-    mask2 = numpy_convolve_filter_longways(mask[:,(64-16):(128+16)],13,3)
-    mask2 = numpy_convolve_filter_topways(mask2[:,16:-16],3,3) 
-    mask2[mask2<residue] = residue
-
-    return mask2
+    return mask,flag
 
 
 class FilterThread(Thread):
@@ -1306,11 +1273,18 @@ class FilterThread(Thread):
            self.audio[-8192:] = data[:]
            hann = sstft(self.audio,self.hann,512,hop_len=128,dtype= 'float64')
            logit = sstft(self.audio,self.logistic,512,hop_len=128,dtype= 'float64')
-           mask = mask_generation(numpy.abs(hann),numpy.abs(logit),self.NBINS).T
-           hann = hann[:,64:128]
-           hann = hann.T
-           result = hann * mask
-           output = self.stft.synthesis(result)
+           mask,marker = mask_generation(numpy.abs(logit),self.NBINS)
+           if marker == 1: #if the SNR is high enough this step helps to fully completely extract waveforms for good listening
+           #if the SNR is low, it doesn't hurt anything
+             result_temp = logit * mask
+             residue = logit - result_temp
+             mask2,discard = mask_generation(numpy.abs(residue),self.NBINS)
+             mask = numpy.maximum(mask,mask2)
+             mask[mask<1e-5] = 1e-5
+
+           result = hann[:,64:128]*mask[:,64:128]
+
+           output = self.stft.synthesis(result.T)
            return output
   
   
@@ -1327,6 +1301,7 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
+import time
 def process_data(data: numpy.ndarray):
     print("processing ", data.size / rate, " seconds long file at ", rate, " rate.")
     start = time.time()
@@ -1343,7 +1318,6 @@ def process_data(data: numpy.ndarray):
     end = time.time()
     print("took ", end - start, " to process ", data.size / rate)
     return numpy.concatenate((processed), axis=0)     
-
 
 class StreamSampler(object):
 
