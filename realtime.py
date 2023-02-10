@@ -1258,22 +1258,23 @@ class Filter(object):
             entropy[:]= remove_outliers(entropy,1,2,0)
             t = threshold(numpy.ravel(self.logit_real))
             self.logit_real[:] = sawtooth_filter(self.logit_real[:])
+            self.mask.fill(0)
             self.previous.fill(0)
+
             self.previous[0:self.NBINS,:] = fast_peaks(self.logit_real,entropy,t,entropy_unmasked)
 
-            #first we extract some of the data, then we do it again to maximally extract the waveform.
-            #this second set of steps can be skipped for a maximally denoised signal.
-
             self.residue[:] =  self.logit - (self.logit *  self.previous[0:self.NBINS,:])
-            self.logit_real[:] = numpy.abs(self.residue)
-
+            previous = self.logit_real.max()
+            self.logit_real[:] = abs(self.residue[:])
+            multiplier = self.logit_real.max()/previous
             self.logit_real[:] = sawtooth_filter(self.logit_real[:])
-            self.mask.fill(0)
-            self.mask[0:self.NBINS,:] = fast_peaks(self.logit_real,entropy,t,entropy_unmasked)
-            self.mask[:] = numpy.maximum(self.mask, self.previous)[:]
+
+            self.mask[0:self.NBINS,:] = fast_peaks(self.logit_real,entropy,t,entropy_unmasked)     
+
+            self.mask[:] = numpy.maximum(self.mask*multiplier,self.previous)
 
             self.mask[:] = sawtooth_filter(self.mask)
-            self.mask[:] = convolve_custom_filter_2d(self.mask[:],13,3,3) #consumes the most of our time
+            self.mask[:] = convolve_custom_filter_2d(self.mask[:],13,3,3)
 
             #then we do it again on the remainder to maximally extract the desired waveform
             #we retain our entropy encoding
