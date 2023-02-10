@@ -1241,12 +1241,11 @@ def mask_generation(stft:numpy.ndarray,NBINS:int):
       maxstreak = longestConsecutive(entropy_minimal)
       if nbins>22 or maxstreak>16:
           flag = 1
-          flat  = numpy.ravel(stft)
-          thresh = threshold(flat[flat>man(flat)])
+
           entropy = process_row(entropy,0,6,1)
           entropy = process_row(entropy,1,2,0)
-
-          mask[0:36,:] = fast_peaks(stft,entropy,thresh,entropy_unmasked)
+          stft = sawtooth_filter(stft)
+          mask[0:36,:] = fast_peaks(stft,entropy,threshold(numpy.ravel(stft)),entropy_unmasked)
 
           mask = sawtooth_filter(mask)
           mask = convolve_custom_filter_2d(mask,13,3,3)
@@ -1265,27 +1264,29 @@ class FilterThread(Thread):
         self.logistic = generate_logit_window(self.NFFT)
         self.synthesis = pra.transform.stft.compute_synthesis_window(self.hann, self.hop)
         self.stft = STFT(512, hop=self.hop, analysis_window=self.hann,synthesis_window=self.synthesis ,online=True)
+        self.logit = numpy.zeros(((257,192)),dtype=numpy.complex128,order='C')
+        self.result = numpy.zeros(((257,64)),dtype=numpy.complex128,order='C')
+        self.zeros = numpy.zeros(((257,64)),dtype=numpy.complex128,order='C')
 
-        self.audio = numpy.zeros(8192*3)
+        self.mask = numpy.zeros(((257,192)),dtype=numpy.float64,order='C')
+        self.audio = numpy.zeros(8192*3,dtype=numpy.float32,order='C')
 
     def process(self,data,):        
            self.audio = numpy.roll(self.audio,-8192)
            self.audio[-8192:] = data[:]
-           hann = sstft(self.audio,self.hann,512,hop_len=128,dtype= 'float64')
-           logit = sstft(self.audio,self.logistic,512,hop_len=128,dtype= 'float64')
-           mask,marker = mask_generation(numpy.abs(logit),self.NBINS)
-           if marker == 1: #if the SNR is high enough this step helps to fully completely extract waveforms for good listening
-           #if the SNR is low, it doesn't hurt anything
-             result_temp = logit * mask
-             residue = logit - result_temp
+           self.logit[:] = sstft(self.audio,self.logistic,512,hop_len=128,dtype= 'float64')
+           self.mask[:],marker = mask_generation(numpy.abs(self.logit),self.NBINS)
+           if marker: #if the SNR is high enough this step helps to fully completely extract waveforms for good listening
+             #if the SNR is low, it doesn't hurt anything
+             residue =  self.logit - (self.logit *  self.mask)
              mask2,discard = mask_generation(numpy.abs(residue),self.NBINS)
-             mask = numpy.maximum(mask,mask2)
-             mask[mask<1e-5] = 1e-5
-
-           result = hann[:,64:128]*mask[:,64:128]
-
-           output = self.stft.synthesis(result.T)
-           return output
+             self.mask[:] = numpy.maximum(self.mask,mask2)[:]
+             self.result[:] = sstft(self.audio,self.hann,512,hop_len=128,dtype= 'float64')[:,64:128] * self.mask[:,64:128]
+             return self.stft.synthesis(self.result.T)
+             
+           else:
+             return self.stft.synthesis(self.zeros.T)
+  
   
   
     def stop(self):
