@@ -1353,10 +1353,7 @@ class StreamSampler(object):
             self.speakerstream.close()
         except (AttributeError, Exception):
             pass
-        try:
 
-        except (AttributeError, Exception):
-            pass
 
     def open_mic_stream(self):
         device_index = None
