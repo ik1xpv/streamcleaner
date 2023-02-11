@@ -1,7 +1,7 @@
 # Stream Cleaner
 Since i'm not good at explanations, I'll just keep this short and simple:
 
-Cleanup.py is the file you want here. For the realtime version, try realtime.py.
+realtime.py is the file you want here. 
 
 This repository contains a really good method for reducing noise in audio, for use with speech and other similar waveforms.
 It can be used to denoise CW as well, although it should be tweaked for that. It should not be used for denoising data modes.
