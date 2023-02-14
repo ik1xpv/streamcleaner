@@ -1133,32 +1133,53 @@ def same_convolution_float_1d(ap1, ap2):
             idx += inc
         return ret
 
+@numba.jit(numba.float64[:](numba.float64[:],numba.int64))
+def float_zero_pad_1d(array, pad_width):
 
+    padded = np.zeros(array.size+pad_width*2, dtype=numpy.float64)
+    # Copy old array into correct space
+    padded[pad_width:-pad_width] = array[:]
+
+    return padded
+
+@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64))
+def float_zero_pad_2d(array, E,N):
+    X = E * 2
+    Y = N * 2
+    padded = np.zeros(((array.shape[0]+X,array.shape[1]+Y)), dtype=numpy.float64)
+    # Copy old array into correct space
+    padded[E:-E,N:-N] = array[:]
+
+    return padded
+
+
+@numba.jit(numba.float64[:](numba.float64[:],numba.int64))
 def moving_average(x, w):
-    return same_convolution_float_1d(x, numpy.ones(w,dtype=numpy.float64)) / w
+    return same_convolution_float_1d(x, numpy.ones(w,numpy.float64)) / w
 
-def smoothpadded(data: numpy.ndarray,n:float):
-  o = numpy.pad(data, n*2, mode='constant')
-  return moving_average(o,n)[n*2: -n*2]
+@numba.jit(numba.float64[:](numba.float64[:],numba.int64))
+def smoothpadded(data: numpy.ndarray,n:int):
+  return moving_average(float_zero_pad_1d(data, n*2),n)[n*2: -n*2]
 
 
 
-sawtoothdata = numpy.asarray([0.,0.14285714,0.28571429,0.42857143,0.57142857,0.71428571,0.85714286,1.,0.85714286,0.71428571,0.57142857,0.42857143,0.28571429,0.14285714,0.]).astype(dtype=numpy.float64)
+
+@numba.jit(numba.float64[:,:](numba.float64[:,:]))
 def sawtooth_filter(data):
     E= 30
-    working = numpy.pad(array=data,pad_width=((E,E),(E,E)),mode="constant")  
-    #wavelet_data = generate_sawtooth_filter(15)
-    working2 = working.flatten()
-    working2 = same_convolution_float_1d(working2, sawtoothdata)
-    working = working2.reshape(working.shape)
+    filter = numpy.asarray([0.,0.14285714,0.28571429,0.42857143,0.57142857,0.71428571,0.85714286,1.,0.85714286,0.71428571,0.57142857,0.42857143,0.28571429,0.14285714,0.])
+    working = float_zero_pad_2d(data,E,E)  
+    working2 = numpy.ravel(working) #ravel provides a view
+    working2[:] = same_convolution_float_1d(working2, filter[:])
+    working[:] = working2.reshape(working.shape)
     working = working/7
     return  working[E:-E:,E:-E:]
 
-
+@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64,numba.int64))
 def convolve_custom_filter_2d(data: numpy.ndarray,N:int,M:int,O:int):
   E = N*2
   F = M*2
-  padded = numpy.pad(array=data,pad_width=((F,F),(E,E)),mode="constant")  
+  padded = float_zero_pad_2d(data,F,E)
   normal = padded.copy()
   normal_t = padded.T.copy()
   b = numpy.ravel(normal)
