@@ -1112,7 +1112,7 @@ def sawtooth_filter(data):
     working = numpy.pad(array=data,pad_width=((E,E),(E,E)),mode="constant")  
     #wavelet_data = generate_sawtooth_filter(15)
     working2 = working.flatten()
-    working2 = numpy.convolve(working2, sawtoothdata, mode='same')
+    working2 = numpy.correlate(working2, sawtoothdata, mode='same')
     working = working2.reshape(working.shape)
     working = working/7
     return  working[E:-E:,E:-E:]
@@ -1138,8 +1138,8 @@ def convolve_custom_filter_2d(data: numpy.ndarray,N:int,M:int,O:int):
       normal_t = padded.T.copy()
       b = numpy.ravel(normal)
       c = numpy.ravel(normal_t)
-      b[:] = (numpy.convolve(b[:], numpy.ones(N),mode="same") / N)[:]
-      c[:] =  (numpy.convolve(c[:], numpy.ones(M),mode="same") / M)[:]
+      b[:] = (numpy.correlate(b[:], numpy.ones(N),mode="same") / N)[:]
+      c[:] =  (numpy.correlate(c[:], numpy.ones(M),mode="same") / M)[:]
       padded = (normal + normal_t.T.copy())
   return renormalize(padded[F:-F,E:-E],data)
 
@@ -1256,9 +1256,9 @@ class Filter(object):
       self.logit_real[:] = numpy.abs(self.logit)
 
 
-      entropy_unmasked = fast_entropy(numpy.sort(self.logit_real,axis=0))
+      entropy_unmasked = fast_entropy(numpy.sort(self.logit_real[:],axis=0))
       entropy_unmasked[numpy.isnan(entropy_unmasked)] = 0
-      entropy = smoothpadded(entropy_unmasked,3).astype(dtype=numpy.float64)
+      entropy = smoothpadded(entropy_unmasked[:],3).astype(dtype=numpy.float64)
 
       if numpy.max(entropy) > self.constant: 
         entropy[entropy<self.constant] = 0
@@ -1267,29 +1267,29 @@ class Filter(object):
 
         count = numpy.sum(entropy[64-32:128+32])
         maxstreak = longestConsecutive(entropy[64-32:128+32])
-        if count>22 or maxstreak>16:
+if count>22 or maxstreak>16:
 
             entropy[:]= remove_outliers(entropy,0,6,1)
             entropy[:]= remove_outliers(entropy,1,2,0)
-            t = threshold(numpy.ravel(self.logit_real))
-            self.logit_real[:] = sawtooth_filter(self.logit_real[:])
+            t = threshold(numpy.ravel(self.logit_real[:]))
+            logit_real_2 = sawtooth_filter(self.logit_real[:])
             self.mask.fill(0)
             self.previous.fill(0)
-
-            self.previous[0:self.NBINS,:] = fast_peaks(self.logit_real,entropy,t,entropy_unmasked)
-
-            self.residue[:] =  self.logit - (self.logit *  self.previous[0:self.NBINS,:])
             previous = self.logit_real.max()
-            self.logit_real[:] = abs(self.residue[:])
-            multiplier = self.logit_real.max()/previous
-            self.logit_real[:] = sawtooth_filter(self.logit_real[:])
 
-            self.mask[0:self.NBINS,:] = fast_peaks(self.logit_real,entropy,t,entropy_unmasked)     
+            self.previous[0:self.NBINS,:] = fast_peaks(logit_real_2,entropy,t,entropy_unmasked)
+            self.logit_real[0:self.NBINS,:] = numpy.where(self.previous[0:self.NBINS,:]==1,0,self.logit_real[0:self.NBINS,:])
+
+            multiplier = self.logit_real.max()/previous
+            multiplier = min(multiplier,1.0)
+            self.logit_real_3 = sawtooth_filter(self.logit_real[:])
+
+            self.mask[0:self.NBINS,:] = fast_peaks(self.logit_real_3,entropy,t,entropy_unmasked)     
 
             self.mask[:] = numpy.maximum(self.mask*multiplier,self.previous)
-
             self.mask[:] = sawtooth_filter(self.mask)
             self.mask[:] = convolve_custom_filter_2d(self.mask[:],13,3,3)
+            self.mask[:]= (self.mask[:] - numpy.nanmin(self.mask[:]))/numpy.ptp(self.mask[:])
 
             #then we do it again on the remainder to maximally extract the desired waveform
             #we retain our entropy encoding
