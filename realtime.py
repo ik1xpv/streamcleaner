@@ -1267,7 +1267,7 @@ class Filter(object):
 
         count = numpy.sum(entropy[64-32:128+32])
         maxstreak = longestConsecutive(entropy[64-32:128+32])
-if count>22 or maxstreak>16:
+        if count>22 or maxstreak>16:
 
             entropy[:]= remove_outliers(entropy,0,6,1)
             entropy[:]= remove_outliers(entropy,1,2,0)
