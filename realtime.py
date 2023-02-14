@@ -1040,15 +1040,6 @@ def threshold(data: numpy.ndarray):
  a = numpy.sqrt(numpy.nanmean(numpy.square(numpy.abs(data -numpy.nanmedian(numpy.abs(data - numpy.nanmedian(data[numpy.nonzero(data)]))))))) + numpy.nanmedian(data[numpy.nonzero(data)])
  return a
 
-
-def moving_average(x, w):
-    return numpy.convolve(x, numpy.ones(w), 'same') / w
-
-def smoothpadded(data: numpy.ndarray,n:float):
-  o = numpy.pad(data, n*2, mode='constant')
-  return moving_average(o,n)[n*2: -n*2]
-
-
 def generate_true_logistic(points):
     if points ==1:
       return 1
@@ -1106,23 +1097,63 @@ def generate_sawtooth_filter(size):
     e = numpy.hstack((e,e[::-1]))
     return e
 
-sawtoothdata = numpy.asarray([0.,0.14285714,0.28571429,0.42857143,0.57142857,0.71428571,0.85714286,1.,0.85714286,0.71428571,0.57142857,0.42857143,0.28571429,0.14285714,0.])
+@numba.jit(numba.float64(numba.float64[:],numba.float64[:]))
+def innerprod(a, b):
+        acc = 0
+        for i in range(len(a)):
+            acc = acc + a[i] * b[i]
+        return acc
+
+#adapted from https://github.com/stuartarchibald
+#note: the first array must be larger than the second or this code will crash.
+#this function also only accepts double input
+@numba.jit(numba.float64[:](numba.float64[:],numba.float64[:]))
+def same_convolution_float_1d(ap1, ap2): 
+        n1= len(ap1)
+        n2= len(ap2)
+
+        n_left = n2 // 2
+        n_right = n2 - n_left - 1
+
+        ret = numpy.zeros(n1, numpy.float64)
+
+        idx = 0
+        inc = 1
+
+        for i in range(n2 - n_left, n2):
+            ret[idx] = innerprod(ap1[:i], ap2[-i:])
+            idx += inc
+
+        for i in range(n1 - n2 + 1):
+            ret[idx] = innerprod(ap1[i : i + n2], ap2)
+            idx += inc
+
+        for i in range(n2 - 1, n2 - 1 - n_right, -1):
+            ret[idx] = innerprod(ap1[-i:], ap2[:i])
+            idx += inc
+        return ret
+
+
+def moving_average(x, w):
+    return same_convolution_float_1d(x, numpy.ones(w,dtype=numpy.float64)) / w
+
+def smoothpadded(data: numpy.ndarray,n:float):
+  o = numpy.pad(data, n*2, mode='constant')
+  return moving_average(o,n)[n*2: -n*2]
+
+
+
+sawtoothdata = numpy.asarray([0.,0.14285714,0.28571429,0.42857143,0.57142857,0.71428571,0.85714286,1.,0.85714286,0.71428571,0.57142857,0.42857143,0.28571429,0.14285714,0.]).astype(dtype=numpy.float64)
 def sawtooth_filter(data):
     E= 30
     working = numpy.pad(array=data,pad_width=((E,E),(E,E)),mode="constant")  
     #wavelet_data = generate_sawtooth_filter(15)
     working2 = working.flatten()
-    working2 = numpy.correlate(working2, sawtoothdata, mode='same')
+    working2 = same_convolution_float_1d(working2, sawtoothdata)
     working = working2.reshape(working.shape)
     working = working/7
     return  working[E:-E:,E:-E:]
 
-
-def renormalize(data,previous):
-  data = data - numpy.nanmin(data)
-  data = data/numpy.ptp(data)
-  data = data * numpy.ptp(previous)
-  return data
 
 def convolve_custom_filter_2d(data: numpy.ndarray,N:int,M:int,O:int):
   E = N*2
@@ -1138,10 +1169,10 @@ def convolve_custom_filter_2d(data: numpy.ndarray,N:int,M:int,O:int):
       normal_t = padded.T.copy()
       b = numpy.ravel(normal)
       c = numpy.ravel(normal_t)
-      b[:] = (numpy.correlate(b[:], numpy.ones(N),mode="same") / N)[:]
-      c[:] =  (numpy.correlate(c[:], numpy.ones(M),mode="same") / M)[:]
-      padded = (normal + normal_t.T.copy())
-  return renormalize(padded[F:-F,E:-E],data)
+      b[:] = (same_convolution_float_1d(b[:], numpy.ones(N,dtype=numpy.float64)) / N)[:]
+      c[:] = (same_convolution_float_1d(c[:], numpy.ones(M,dtype=numpy.float64)) / M)[:]
+      padded = (normal + normal_t.T.copy())/2
+  return padded[F:-F,E:-E] 
 
 @numba.njit(numba.float64[:](numba.float64[:,:]))
 def fast_entropy(data: numpy.ndarray):
