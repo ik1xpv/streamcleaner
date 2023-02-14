@@ -41,7 +41,7 @@ Intrinsic Bayesian Algorithm or IBA algorithm version 1.0 copywrite 2023 Joshuah
 #additional code contributed by Justin Engel
 #idea and code and bugs by Joshuah Rainstar, Oscar Steila
 #https://groups.io/g/NextGenSDRs/topic/spectral_denoising
-#realtime.py 1.2.3 - 2/10/23 
+#realtime.py 1.2.4 - 2/13/23  - as fast and as good and as proper as cleanup.py, only better.
 
 #How to use this file:
 #you will need 1 virtual audio cable- try https://vb-audio.com/Cable/ if you use windows.
