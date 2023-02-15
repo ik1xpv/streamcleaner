@@ -257,7 +257,7 @@ def fast_entropy(data: numpy.ndarray):
    logit = numpy.asarray([0.,0.08441118,0.16882236,0.2197072,0.25693163, 0.28672628,0.31187091,0.33385255,0.35356306,0.37158192, 0.38830914,0.40403462,0.41897721,0.43330834,0.44716693, 0.46066936,0.47391649,0.4869987,0.5,0.5130013, 0.52608351,0.53933064,0.55283307,0.56669166,0.58102279, 0.59596538,0.61169086,0.62841808,0.64643694,0.66614745, 0.68812909,0.71327372,0.74306837,0.7802928,0.83117764, 0.91558882,1.])
    #note: if you alter the number of bins, you need to regenerate this array. currently set to consider 37 bins
    entropy = numpy.zeros(data.shape[1],dtype=numpy.float64)
-   for each in numba.prange(data.shape[1]):
+   for each in range(data.shape[1]):
       d = data[:,each]
       d = numpy.interp(d, (d[0], d[-1]), (0, +1))
       entropy[each] = 1 - numpy.corrcoef(d, logit)[0,1]
@@ -273,7 +273,7 @@ def determine_entropy_maximum(size:int):
 @numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64[:],numba.float64,numba.float64[:]))
 def fast_peaks(stft_:numpy.ndarray,entropy:numpy.ndarray,thresh:numpy.float32,entropy_unmasked:numpy.ndarray):
     mask = numpy.zeros_like(stft_)
-    for each in numba.prange(stft_.shape[1]):
+    for each in range(stft_.shape[1]):
         data = stft_[:,each].copy()
         if entropy[each] == 0:
             continue #skip the calculations for this row, it's masked already
