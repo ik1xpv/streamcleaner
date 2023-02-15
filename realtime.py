@@ -324,7 +324,7 @@ def remove_outliers(a:numpy.ndarray, value:int, threshold, replace):
             first = index
     return a
 
-@numba.jit(numba.complex128[:,:](numba.float64[:],numba.float64[:]),parallel=True)
+@numba.jit(numba.complex128[:,:](numba.float64[:],numba.float64[:]))
 def stft(x, window):
 #note: this function should not be used as an example of how to write a stft.
 #a number of explicit assumptions are made here to improve performance with assumed inputs.
@@ -351,7 +351,7 @@ def stft(x, window):
     s20 = int(numpy.ceil(seg_len / 2))
     s21 = s20 - 1 if (seg_len % 2 == 1) else s20
     Sx = numpy.zeros(((seg_len, n_segs)), dtype=numpy.float64)
-    for i in numba.prange(n_segs):
+    for i in range(n_segs):
         start0 = hop_len * i
         end0   = start0 + s21
         start1 = end0
