@@ -1267,6 +1267,48 @@ def remove_outliers(a:numpy.ndarray, value:int, threshold, replace):
             first = index
     return a
 
+@numba.jit(numba.complex128[:,:](numba.float64[:],numba.float64[:]),parallel=True)
+def stft(x, window):
+#note: this function should not be used as an example of how to write a stft.
+#a number of explicit assumptions are made here to improve performance with assumed inputs.
+#modifications here also allow for LLVM acceleration of other code that calls this logic.
+#for that, read https://github.com/OverLordGoldDragon/ssqueezepy/blob/37d960fe3579cfe21eed5a1f58b4e2a85882f223/ssqueezepy/_stft.py
+    
+    n_fft = 512
+    win_length = 512
+    hop_len = 128
+
+    # process args
+    N = 8192
+    n_fft = 512
+
+    xp = numpy.zeros(25087,dtype=numpy.float64)
+    xp[256:-255]= x[:]
+    xp[0:256] = xp[257:(256*2)+1][::-1]
+    xp[-255:] = xp[-255*2-1:-256][::-1]
+
+    seg_len = n_fft
+    n_overlap = n_fft - hop_len
+    hop_len = seg_len - n_overlap
+    n_segs = (xp.shape[-1] - seg_len) // hop_len + 1
+    s20 = int(np.ceil(seg_len / 2))
+    s21 = s20 - 1 if (seg_len % 2 == 1) else s20
+    Sx = np.zeros(((seg_len, n_segs)), dtype=numpy.float64)
+    for i in numba.prange(n_segs):
+        start0 = hop_len * i
+        end0   = start0 + s21
+        start1 = end0
+        end1   = start1 + s20
+        Sx[:s20, i] = xp[start1:end1]
+        Sx[s20:, i] = xp[start0:end0]
+
+    with numba.objmode(Sx ="complex128[:,:]"):
+      window = numpy.fft.ifftshift(window)
+      Sx *= window.reshape(-1, 1) #apply windowing
+      Sx = numpy.fft.rfft(Sx, axis=0)
+
+
+    return Sx
 
 class Filter(object):
     def __init__(self):
