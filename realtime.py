@@ -85,7 +85,6 @@ import os
 import numba
 import numpy 
 import numpy as np
-os.environ['SSQ_PARALLEL'] = '0' #avoids high cpu usage, we dont need maximum output
 
 import pyaudio
 import dearpygui.dearpygui as dpg
@@ -494,34 +493,6 @@ class Filter(object):
          self.flag = 0
          return product  
       return numpy.zeros(8192,dtype=numpy.float64)
-
-        
-def padarray(A, size):
-    t = size - len(A)
-    return numpy.pad(A, pad_width=(0, t), mode='constant',constant_values=numpy.std(A))
-
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
-
-import time
-def process_data(data: numpy.ndarray):
-    print("processing ", data.size / rate, " seconds long file at ", rate, " rate.")
-    start = time.time()
-    filter = Filter()
-    processed = []
-    for each in chunks(data, 8192):
-        if each.size == 8192:
-            a = filter.process(each)
-            processed.append(a)
-        else:
-            psize = each.size
-            working = padarray(each, 8192)
-            processed.append(filter.process(working)[0:psize])
-    end = time.time()
-    print("took ", end - start, " to process ", data.size / rate)
-    return numpy.concatenate((processed), axis=0)     
 
 class StreamSampler(object):
 
