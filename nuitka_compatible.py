@@ -120,6 +120,8 @@ def sawtooth_filter(data):
     working2[:] = same_convolution_float_1d(working2, filter[:])
     working[:] = working2.reshape(working.shape)
     working = working/7
+    working = (working - numpy.nanmin(working))/numpy.ptp(working)
+    working = working * numpy.ptp(data)
     return  working[E:-E:,E:-E:]
 
 
