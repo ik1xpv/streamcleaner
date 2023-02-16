@@ -1,5 +1,6 @@
+from __future__ import division
 '''
-FILE IO Demo v2.1
+FILE IO Demo v2.2
 Copyright 2023 Oscar Steila, Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
@@ -68,10 +69,8 @@ import time
 
 import numba
 import numpy
-os.environ['SSQ_PARALLEL'] = '0' #avoids high cpu usage, we dont need maximum output
+import os
 
-import pyaudio
-import dearpygui.dearpygui as dpg
 
 from numpy.fft import irfft, rfft
 
@@ -224,8 +223,6 @@ def sawtooth_filter(data):
     working2[:] = same_convolution_float_1d(working2, filter[:])
     working[:] = working2.reshape(working.shape)
     working = working/7
-    working = (working - numpy.nanmin(working))/numpy.ptp(working)
-    working = working * numpy.ptp(data)
     return  working[E:-E:,E:-E:]
 
 @numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64,numba.int64))
@@ -521,10 +518,10 @@ if __name__ == '__main__':
     print(outfile)
     rate, data = wavfile.read(infile)
     data = numpy.asarray(data)#correct the format for processing
-    empty= zeros_like(data)
-    if data.ndim = 1:
-        reduced_noise = process_data(data)
+    empty= numpy.zeros_like(data)
+    if data.ndim == 1:
+        empty = process_data(data)
     else: #hopefully this patches the stereo capability
-        reduced_noise[:,0] = process_data(data[:,0])
-        reduced_noise[:,1] = process_data(data[:,1])
-    wavfile.write(outfile, rate, reduced_noise)
+        empty[:,0] = process_data(data[:,0])
+        empty[:,1] = process_data(data[:,1])
+    wavfile.write(outfile, rate, empty)
