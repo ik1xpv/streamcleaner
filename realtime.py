@@ -477,7 +477,6 @@ class Filter(object):
             mask = numpy.maximum(next*multiplier,previous)
             mask = sawtooth_filter(mask)
             mask = convolve_custom_filter_2d(mask,13,3,3)
-            mask= (mask - numpy.nanmin(mask))/numpy.ptp(mask)
 
             #then we do it again on the remainder to maximally extract the desired waveform
             #we retain our entropy encoding
