@@ -34,21 +34,19 @@
 	negotiate with the Author providing a fair and equitable share of profit as a royalty consisting of 1% of the gross value of the contract.
 TLDR
 	This may seem like a lot and it may dissuade you from using the code because you feel it is not permissive enough.
-	Nothing in this stops you or anyone else as individuals from using, compiling, redistributing, or modifying the code.
+	Nothing in this stops you or anyone else from using, compiling, redistributing, or modifying the code.
 	You must include the License. If you make money off of it through indirect means, you must share 1% of it.
 	If you charge for it directly, or anyone else does so, I will sue them- I do not permit this.
 	I wrote this code for your use and in my total boredom and for no other reasons. I would never do this for a job.
 	I will never, ever revise the terms of this agreement or charge for it. To prove this...
 
-18.	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, even if the author remains alive,
+18.	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive,
 	which is unlikely, shall be considered dually licensed under the MIT license and the GPL-2.0, in perpetuum.
 */
 
 //please note: this project is still a work in process and is not finished.
 //please do not attempt to use this code for any purpose until this line is removed.
-//note: everything here compiles in visual studio 2019.
-//however, the output has not been validated to be identical or similar to the python.
-//the test bed yields substantially different results.
+
 
 #include <iostream>
 #include <vector>
@@ -287,8 +285,9 @@ double correlationCoefficient(const array<double, 257>& X, const array<double, 2
 //inlines 1d interpolation and corrceoff directly into the function. uses NBINS to decide how much of the window to consider.
 
 
-void fast_entropy(array<array<double, 257>, 192>& data, array<double, 192>& entropy_unmasked, array<double, 257>& d_subset, array<double, 257>& logit, int NBINS) {
-
+void fast_entropy(array<array<double, 257>, 192>& data, array<double, 192>& entropy_unmasked, array<double, 257>& logit, int NBINS) {
+	static array<double, 257> d_subset;
+	d_subset.fill(0);
 	for (int i = 0; i < 192; i++) {
 		array<double, 257>& d = data[i];
 
@@ -391,7 +390,7 @@ void remove_outliers(array<int, 192>& a, const int& value, const int& threshold,
 }
 
 //compiles
-void rfft(array<double, 257>& x, array<complex<double>, 257>& X) {
+inline void rfft(array<double, 257>& x, array<complex<double>, 257>& X) {
 	const int N = 257;//must equal the size of the input!
 
 	// Compute the FFT of the positive frequencies
@@ -446,7 +445,7 @@ static void irfft_fftshift_1d(array<complex<double>, 257>& X, array<double, 257>
 }
 
 //compiles
-void stft(array<double, 25087>& xp, array<double, 512>& Sx_temp, array<double, 257>& Sx_temp_2, const array<double, 512>& window, array<array<complex<double>, 257>, 192>& out) {
+static void stft(array<double, 25087>& xp, const array<double, 512>& window, array<array<complex<double>, 257>, 192>& out) {
 	const int n_fft = 512;
 	const int win_length = 512;
 	const int N = 8192;
@@ -456,7 +455,10 @@ void stft(array<double, 25087>& xp, array<double, 512>& Sx_temp, array<double, 2
 	const int n_segs = 192;
 	const int s20 = 256;
 
-
+	static array<double, 257> Sx_temp_2;
+	static array<double, 512> Sx_temp;
+	Sx_temp_2.fill(0);
+	Sx_temp.fill(0);
 
 	// Initialize Sx_temp to all zeros
 
@@ -483,15 +485,14 @@ void stft(array<double, 25087>& xp, array<double, 512>& Sx_temp, array<double, 2
 	}
 }
 
-static void istft(array<array<complex<double>, 257>, 64>& Sx, array<double, 257>& temp, array<double, 384>& buffer, array<double, 8192>& output, const array<double, 512>& window) {
+static void istft(array<array<complex<double>, 257>, 64>& Sx, array<double, 384>& buffer, array<double, 8192>& output, const array<double, 512>& window) {
 	const int n_fft = 512;
 	const int win_len = 512;
 	const int N = 8192;
 	const int hop_len = 128;
+	static array<double, 257> temp;
+	temp.fill(0);
 
-	// Reset buffer and output arrays
-	fill(buffer.begin(), buffer.end(), 0.0);
-	fill(output.begin(), output.end(), 0.0);
 
 	// Reuse temp, eliminate xbuf
 	for (int i = 0; i < 64; i++) {
@@ -586,9 +587,7 @@ public:
 		static array<double, 192> entropy_unmasked;
 		static array<double, 204> entropy_padded; //192 + 12
 		static array<double, 257> logit_distribution;
-		static array<double, 257> temp;
-		static array<double, 512> Sx_temp;
-		static array<double, 257> Sx_temp_2;
+
 
 		static array<double, 8192> output;
 		static array<double, 8192> empty;//just a bunch of zeros
@@ -651,15 +650,15 @@ public:
 		}
 		for (int i = 0; i < 255; i++) {
 			a.audio_padded[25087 - 255 + i] = a.audio[a.audio.size() - 256 - i - 1];
-		}	
-		stft(a.audio_padded, a.Sx_temp, a.Sx_temp_2, a.shifted_logistic_window, a.stft_complex);
+		}
+		stft(a.audio_padded, a.shifted_logistic_window, a.stft_complex);
 		// Copy the first 37 rows of stft_complex to stft_real
 		for (int i = 0; i < 257; i++) {
 			for (int j = 0; j < 192; j++) {
 				a.stft_real[j][i] = abs(a.stft_complex[j][i]);
 			}
 		}
-		fast_entropy(a.stft_real, a.entropy_unmasked, a.temp, a.logit_distribution, NBINS);
+		fast_entropy(a.stft_real, a.entropy_unmasked, a.logit_distribution, NBINS);
 
 		for (int i = 0; i < 192; i++) {
 			if (isnan(a.entropy_unmasked[i])) {
@@ -730,7 +729,7 @@ public:
 				sawtooth_filter(a.previous, a.scratch, a.previous, NBINS);
 				// Compute hann
 
-				stft(a.audio_padded, a.Sx_temp, a.Sx_temp_2, a.shifted_hann_window, a.stft_complex);
+				stft(a.audio_padded, a.shifted_hann_window, a.stft_complex);
 
 				for (int i = 0; i < NBINS; i++) {
 					for (int j = 64; j < 128; j++) {
@@ -740,18 +739,17 @@ public:
 				}
 
 				a.flag = 1; //update the flag because we are good to go
-				istft(a.stft_output, a.temp, a.buffer, a.output, a.synthesis_window);
-
-
+				istft(a.stft_output, a.buffer, a.output, a.synthesis_window);
 				return  a.output;
 			}
-		}
-		if (a.flag == 1) {
-			// Compute product using the residual buffer since on the last round it contained data
-			istft(a.stft_zeros, a.temp,  a.buffer, a.output, a.synthesis_window);
 
-			a.flag = 2; //update the flag since we processed zeros
-			return  a.output;
+			if (a.flag == 1) {
+				// Compute product using the residual buffer since on the last round it contained data
+				istft(a.stft_zeros, a.buffer, a.output, a.synthesis_window);
+
+				a.flag = 2; //update the flag since we processed zeros
+				return  a.output;
+			}
 		}
 		//in the final case, we no longer need to process a residual buffer,
 		//since the buffer was zeros on the last run, so no istft call is needed here.
@@ -769,9 +767,6 @@ array<double, 384> Filter::Data::buffer{};
 array<double, 192> Filter::Data::entropy_unmasked{};
 array<double, 204> Filter::Data::entropy_padded{};
 array<double, 257> Filter::Data::logit_distribution{};
-array<double, 257> Filter::Data::temp{};
-array<double, 512> Filter::Data::Sx_temp{};
-array<double, 257> Filter::Data::Sx_temp_2{};
 array<double, 8192> Filter::Data::output{};
 array<double, 8192> Filter::Data::empty{};
 
@@ -831,17 +826,27 @@ void generate_complex_wave(array<double, 8192>& data) {
 
 
 
+#include <ctime>
+
 int main() {
 	Filter my_filter = Filter::create();
 	array<double, 8192> demo = { 0 };
 	generate_complex_wave(demo);
 	array<double, 8192> output = { 0 };
-	for (int i = 0; i < 3; i++)
-		output = my_filter.process(demo);
-	double sum = 0.0;
-	for (size_t i = 0; i < output.size(); i++) {
-		sum += std::abs(output[i]);
+
+	clock_t start_time, end_time;
+	start_time = clock(); // get start time
+
+
+	for (int i = 0; i < 20; i++) {
+		output = my_filter.process(demo); // execute the function
 	}
-	cout << sum << endl;
+
+	end_time = clock(); // get end time
+	double duration = (double)(end_time - start_time) / CLOCKS_PER_SEC * 1000.0; // calculate duration in milliseconds
+
+	std::cout << "Total execution time: " << duration << " milliseconds" << std::endl;
+
+
 	return 0;
 }
