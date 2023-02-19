@@ -28,7 +28,22 @@
 15.	The Agreement will be construed and enforced in accordance with the law of the state of Colorado.  
 	The parties irrevocably consent to the exclusive jurisdiction of the state or federal courts located in Denver for all disputes concerning this agreement.
 16.	User agrees not to include, bundle, integrate, or redistribute the software as part of any package, project, program or suite which 
-        is sold, leased, rented, or otherwise charged for. 		
+        is sold, leased, rented, or otherwise charged for. 
+17.	User may include the software as part of a package, project, program, or suite for a client which has paid in other ways,
+	such as for a goverment	contract, where the work or service contract is what is paid for and not the Software, provided that the User
+	negotiate with the Author providing a fair and equitable share of profit as a royalty consisting of 1% of the gross value of the contract.
+
+TLDR
+	This may seem like a lot and it may dissuade you from using the code because you feel it is not permissive enough.
+	Nothing in this stops you or anyone else from using, compiling, redistributing, or modifying the code.
+	You must include the License. If you make money off of it through indirect means, you must share 1% of it.
+	If you charge for it directly, or anyone else does so, I will sue them- I do not permit this.
+	I wrote this code for your use and in my total boredom and for no other reasons. I would never do this for a job.
+	I will never, ever revise the terms of this agreement or charge for it. To prove this...
+	
+18.	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive, 
+	which is unlikely, shall be considered dually licensed under the MIT license and the GPL-2.0, in perpetuum.
+
 */
 
 //please note: this project is still a work in process and is not finished.
