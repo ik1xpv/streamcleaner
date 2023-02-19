@@ -1,7 +1,3 @@
-//note: this code will crash, not all the bugs are out of it yet. please dont assume it works yet.
-
-
-
 /*
 	 Copyright 2023 Joshuah Rainstar
 1.	The source code provided here (hereafter, "the software"), is copyrighted by Joshuah Rainstar (hereafter, “Author”)
@@ -38,19 +34,21 @@
 	negotiate with the Author providing a fair and equitable share of profit as a royalty consisting of 1% of the gross value of the contract.
 TLDR
 	This may seem like a lot and it may dissuade you from using the code because you feel it is not permissive enough.
-	Nothing in this stops you or anyone else from using, compiling, redistributing, or modifying the code.
+	Nothing in this stops you or anyone else as individuals from using, compiling, redistributing, or modifying the code.
 	You must include the License. If you make money off of it through indirect means, you must share 1% of it.
 	If you charge for it directly, or anyone else does so, I will sue them- I do not permit this.
 	I wrote this code for your use and in my total boredom and for no other reasons. I would never do this for a job.
 	I will never, ever revise the terms of this agreement or charge for it. To prove this...
 
-18.	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive,
+18.	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, even if the author remains alive,
 	which is unlikely, shall be considered dually licensed under the MIT license and the GPL-2.0, in perpetuum.
 */
 
 //please note: this project is still a work in process and is not finished.
 //please do not attempt to use this code for any purpose until this line is removed.
-
+//note: everything here compiles in visual studio 2019.
+//however, the output has not been validated to be identical or similar to the python.
+//the test bed yields substantially different results.
 
 #include <iostream>
 #include <vector>
@@ -173,9 +171,10 @@ void find_max(const array<array<double, 257>, 192>& data, int NBINS, double& max
 	}
 }
 
+
 void same_mode_convolve(array<double, 204>& input1, array<double, 3>& input2) {
-	int size1 = input1.size();
-	int size2 = input2.size();
+	int size1 = 204;
+	int size2 = 3;
 	int size_out = size1;
 
 	// Zero-pad the input array
@@ -229,6 +228,7 @@ void sawtooth_filter(array<array<double, 257>, 192>& data, array<array<double, 2
 	}
 
 	// Create dynamic buffer to hold flattened scratch array
+	//this is the only place we use a vector anywhere in the entire program, and that's because we cannot know exactly how many NBINS the user wants to process.
 	vector<double> buffer(NBINS * 207, 0.0);
 
 	// Flatten scratch array into buffer
@@ -289,7 +289,7 @@ double correlationCoefficient(const array<double, 257>& X, const array<double, 2
 
 void fast_entropy(array<array<double, 257>, 192>& data, array<double, 192>& entropy_unmasked, array<double, 257>& d_subset, array<double, 257>& logit, int NBINS) {
 
-	for (int i = 0; i < data.size(); i++) {
+	for (int i = 0; i < 192; i++) {
 		array<double, 257>& d = data[i];
 
 		// Create a subset of the first NBINS elements of d and sort it
@@ -322,14 +322,14 @@ double determine_entropy_maximum(const array<double, 257>& logit, int NBINS) {
 //compiles
 
 
-void fast_peaks(array<array<double, 257>, 192>& stft_, array<int, 192>& entropy, double thresh, array<double, 192>& entropy_unmasked, double& entropy_maximum, int& NBINS, array<array<double, 257>, 192>& mask) {
+void fast_peaks(array<array<double, 257>, 192>& stft_, array<int, 192>& entropy, double thresh, array<double, 204>& entropy_padded, double& entropy_maximum, int& NBINS, array<array<double, 257>, 192>& mask) {
 	double constant, test, thresh1 = 0.0;
-	for (int each = 0; each < stft_[0].size(); each++) {
+	for (int each = 0; each < 192; each++) {
 		if (entropy[each] == 0) {
 			continue; //skip the calculations for this row, it's masked already
 		}
 		constant = MAN(stft_[each], NBINS);
-		test = entropy_unmasked[each + 6] / entropy_maximum;
+		test = entropy_padded[each + 6] / entropy_maximum;
 		test = abs(test - 1);
 		thresh1 = (thresh * test);
 		if (!isnan(thresh1)) {
@@ -366,10 +366,10 @@ void remove_outliers(array<int, 192>& a, const int& value, const int& threshold,
 	int first = 0;
 	int end = 0;
 	int index = 0;
-	while (first < a.size()) {
+	while (first < 192) {
 		if (a[first] == value) {
 			index = first;
-			while (index < a.size() && a[index] == value) {
+			while (index < 192 && a[index] == value) {
 				index += 1;
 			}
 			end = index;
@@ -382,7 +382,7 @@ void remove_outliers(array<int, 192>& a, const int& value, const int& threshold,
 		}
 		else {
 			index = first;
-			while (index < a.size() && a[index] != value) {
+			while (index < 192 && a[index] != value) {
 				index += 1;
 			}
 			first = index;
@@ -392,7 +392,7 @@ void remove_outliers(array<int, 192>& a, const int& value, const int& threshold,
 
 //compiles
 void rfft(array<double, 257>& x, array<complex<double>, 257>& X) {
-	const int N = 257;
+	const int N = 257;//must equal the size of the input!
 
 	// Compute the FFT of the positive frequencies
 	for (int k = 0; k < N / 2; k++) {
@@ -446,72 +446,72 @@ static void irfft_fftshift_1d(array<complex<double>, 257>& X, array<double, 257>
 }
 
 //compiles
-void stft(array<double, 25087>& xp, const array<double, 512>& window, array<array<double, 257>, 192>& Sx, array<array<complex<double>, 257>, 192>& out) {
+void stft(array<double, 25087>& xp, array<double, 512>& Sx_temp, array<double, 257>& Sx_temp_2, const array<double, 512>& window, array<array<complex<double>, 257>, 192>& out) {
 	const int n_fft = 512;
 	const int win_length = 512;
 	const int N = 8192;
-	const int seg_len = n_fft;
-	const int n_overlap = n_fft - 128;
-	const int hop_len = seg_len - n_overlap;
-	const int n_segs = (static_cast<int>(xp.size()) - seg_len) / hop_len + 1;
-	const int s20 = static_cast<int>(ceil(seg_len / 2.0));
-	const int s21 = (seg_len % 2 == 1) ? s20 - 1 : s20;
+	const int seg_len = 512;
+	const int n_overlap = 384;
+	const int hop_len = 128;
+	const int n_segs = 192;
+	const int s20 = 256;
+
+
+
+	// Initialize Sx_temp to all zeros
+
 	for (int i = 0; i < n_segs; i++) {
-		int start0 = hop_len * static_cast<int>(i);
-		int end0 = start0 + s21;
+		int start0 = hop_len * i;
+		int end0 = start0 + s20;
 		int start1 = end0;
 		int end1 = start1 + s20;
-		for (int j = 0; j < s20; j++) {
-			Sx[j][i] = xp[start1 + j];
-		}
-		for (int j = 0; j < s20; j++) {
-			Sx[s20 + j][i] = xp[start0 + j];
-		}
-	}
 
-	for (int i = 0; i < 192; i++) {
-		for (int j = 0; j < 257; j++) {
-			Sx[j][i] *= window[j];
+		for (int j = 0; j < s20; j++) {
+			Sx_temp[j] = xp[start1 + j];
 		}
-		rfft(Sx[i], out[i]);
+		for (int j = s20; j < seg_len; j++) {
+			Sx_temp[j] = xp[start0 + j - s20];
+		}
+
+		// Apply windowing and copy in one step
+		for (int j = 0; j < 257; j++) {
+			Sx_temp_2[j] = Sx_temp[j] * window[j];
+		}
+
+		// Perform in-place rfft
+		rfft(Sx_temp_2, out[i]);
 	}
 }
 
-static void istft(array<array<complex<double>, 257>, 64>& Sx, array<double, 257>& temp, array<array<double, 257>, 64>& xbuf, array<double, 384>& buffer, array<double, 8192>& output, const array<double, 512>& window) {
+static void istft(array<array<complex<double>, 257>, 64>& Sx, array<double, 257>& temp, array<double, 384>& buffer, array<double, 8192>& output, const array<double, 512>& window) {
 	const int n_fft = 512;
 	const int win_len = 512;
 	const int N = 8192;
 	const int hop_len = 128;
 
-	// Compute the real part of the inverse FFT and shift the values in xbuf using fftshift
-	for (int i = 0; i < Sx.size(); i++) {
-		irfft_fftshift_1d(Sx[i], xbuf[i]);
-	}
+	// Reset buffer and output arrays
+	fill(buffer.begin(), buffer.end(), 0.0);
+	fill(output.begin(), output.end(), 0.0);
 
-	// Back to time domain
-	int n = 0;
-	for (int i = 0; i < xbuf[0].size(); i++) {
-		array<double, 257> processing = { 0 };
-		for (int j = 0; j < xbuf.size(); j++) {
-			processing[j] = xbuf[j][i] * window[j];
-		}
-		array<double, 128> out = { 0 };
-		for (int j = 0; j < hop_len; j++) {
-			out[j] = processing[j] + buffer[j];
-			buffer[j] = buffer[j + hop_len] + processing[j + hop_len];
-		}
-		for (int j = 0; j < out.size(); j++) {
-			output[n + j] = out[j];
-		}
-		n += hop_len;
-	}
+	// Reuse temp, eliminate xbuf
+	for (int i = 0; i < 64; i++) {
+		// Perform in-place irfft and fftshift using temp and xbuf arrays
+		irfft_fftshift_1d(Sx[i], temp);
 
-	// Commit changes to persistent buffer
-	for (int i = 0; i < hop_len; i++) {
-		buffer[i] = buffer[i + hop_len];
-	}
-	fill(end(buffer) - hop_len, end(buffer), 0.0); //fill end with zeros
+		int n = 0;
+		for (int j = 0; j < 257; j++) {
+			// Apply window and add to buffer
+			buffer[j % hop_len] += temp[i] * window[j];
 
+			// Generate output samples and shift buffer left
+			if (j % hop_len == 0) {
+				output[n] = buffer[0];
+				buffer[0] = buffer[hop_len];
+				buffer[hop_len] = 0.0;
+				n += hop_len;
+			}
+		}
+	}
 }
 
 void generate_true_logistic(std::array<double, 257>& logit, int points) {
@@ -582,12 +582,13 @@ public:
 		//working memory
 		static array<double, 24576> audio;
 		static array<double, 25087> audio_padded;
-
 		static array<double, 384> buffer;
 		static array<double, 192> entropy_unmasked;
 		static array<double, 204> entropy_padded; //192 + 12
 		static array<double, 257> logit_distribution;
 		static array<double, 257> temp;
+		static array<double, 512> Sx_temp;
+		static array<double, 257> Sx_temp_2;
 
 		static array<double, 8192> output;
 		static array<double, 8192> empty;//just a bunch of zeros
@@ -606,8 +607,6 @@ public:
 		static array<array<double, 257>, 192> stft_real;
 		static array<array<double, 257>, 192> smoothed;
 		static array<array<double, 257>, 192> previous;
-		static array<array<double, 257>, 192> next;
-		static array<array<double, 257>, 64> real_buffer_istft;
 
 
 		//TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
@@ -652,8 +651,8 @@ public:
 		}
 		for (int i = 0; i < 255; i++) {
 			a.audio_padded[25087 - 255 + i] = a.audio[a.audio.size() - 256 - i - 1];
-		}
-		stft(a.audio_padded, a.shifted_logistic_window, a.stft_real, a.stft_complex);
+		}	
+		stft(a.audio_padded, a.Sx_temp, a.Sx_temp_2, a.shifted_logistic_window, a.stft_complex);
 		// Copy the first 37 rows of stft_complex to stft_real
 		for (int i = 0; i < 257; i++) {
 			for (int j = 0; j < 192; j++) {
@@ -698,7 +697,7 @@ public:
 				threshold(a.stft_real, NBINS, a.t);
 				find_max(a.stft_real, NBINS, a.initial);
 				sawtooth_filter(a.stft_real, a.scratch, a.smoothed, NBINS);
-				fast_peaks(a.smoothed, a.entropy_thresholded, a.t, a.entropy_unmasked, a.MAXIMUM, NBINS, a.previous);
+				fast_peaks(a.smoothed, a.entropy_thresholded, a.t, a.entropy_padded, a.MAXIMUM, NBINS, a.previous);
 
 				for (int i = 0; i < NBINS; i++) {
 					for (int j = 0; j < 192; j++) {
@@ -714,11 +713,11 @@ public:
 
 				sawtooth_filter(a.stft_real, a.scratch, a.smoothed, NBINS);
 
-				fast_peaks(a.smoothed, a.entropy_thresholded, a.t, a.entropy_unmasked, a.MAXIMUM, NBINS, a.next);
+				fast_peaks(a.smoothed, a.entropy_thresholded, a.t, a.entropy_padded, a.MAXIMUM, NBINS, a.smoothed);
 
 				for (int i = 0; i < NBINS; i++) {
 					for (int j = 0; j < 192; j++) {
-						a.initial = a.next[i][j] * a.multiplier;
+						a.initial = a.smoothed[i][j] * a.multiplier;
 						if (a.previous[i][j] < a.initial) {
 							a.previous[i][j] = a.initial;
 						}
@@ -729,11 +728,9 @@ public:
 					}
 				}
 				sawtooth_filter(a.previous, a.scratch, a.previous, NBINS);
-
-				//convolve_custom_filter_2d(a.previous, 13, 3, 3);
 				// Compute hann
 
-				stft(a.audio_padded, a.shifted_hann_window, a.stft_real, a.stft_complex);
+				stft(a.audio_padded, a.Sx_temp, a.Sx_temp_2, a.shifted_hann_window, a.stft_complex);
 
 				for (int i = 0; i < NBINS; i++) {
 					for (int j = 64; j < 128; j++) {
@@ -743,14 +740,15 @@ public:
 				}
 
 				a.flag = 1; //update the flag because we are good to go
-				istft(a.stft_output, a.temp, a.real_buffer_istft, a.buffer, a.output, a.synthesis_window);
+				istft(a.stft_output, a.temp, a.buffer, a.output, a.synthesis_window);
+
 
 				return  a.output;
 			}
 		}
 		if (a.flag == 1) {
 			// Compute product using the residual buffer since on the last round it contained data
-			istft(a.stft_zeros, a.temp, a.real_buffer_istft, a.buffer, a.output, a.synthesis_window);
+			istft(a.stft_zeros, a.temp,  a.buffer, a.output, a.synthesis_window);
 
 			a.flag = 2; //update the flag since we processed zeros
 			return  a.output;
@@ -772,7 +770,8 @@ array<double, 192> Filter::Data::entropy_unmasked{};
 array<double, 204> Filter::Data::entropy_padded{};
 array<double, 257> Filter::Data::logit_distribution{};
 array<double, 257> Filter::Data::temp{};
-
+array<double, 512> Filter::Data::Sx_temp{};
+array<double, 257> Filter::Data::Sx_temp_2{};
 array<double, 8192> Filter::Data::output{};
 array<double, 8192> Filter::Data::empty{};
 
@@ -797,15 +796,52 @@ array<array<complex<double>, 257>, 64> Filter::Data::stft_zeros{};
 array<array<double, 257>, 192> Filter::Data::stft_real{};
 array<array<double, 257>, 192> Filter::Data::smoothed{};
 array<array<double, 257>, 192> Filter::Data::previous{};
-array<array<double, 257>, 192> Filter::Data::next{};
-array<array<double, 257>, 64> Filter::Data::real_buffer_istft{};
+
 /////////////////////////////////////////////////////
 
-int main() {
-	cout << "Hello World!\n";
-	Filter my_filter = Filter::create();
-	array<double, 8192> zeros = { 0 };
-	array<double, 8192> output = { 0 };
-	output = my_filter.process(zeros);
 
-};
+
+
+////////////code below here is just for testing purposes
+void generate_sine_wave(array<double, 8192>& data, double freq, double phase, double amplitude) {
+	const double sample_rate = 48000;
+	const double delta_phase = 2.0f * M_PI * freq / sample_rate;
+
+	for (int i = 0; i < 8192; i++) {
+		double t = static_cast<double>(i) / sample_rate;
+		data[i] += amplitude * sin(delta_phase * i + phase);
+	}
+}
+#ifndef M_PI_2
+#define M_PI_2 (M_PI / 2.0)
+#endif
+
+#ifndef M_PI_4
+#define M_PI_4 (M_PI / 4.0)
+#endif
+
+void generate_complex_wave(array<double, 8192>& data) {
+	data.fill(0.0f);
+
+	// Generate three sine waves with different frequencies, phases, and amplitudes
+	generate_sine_wave(data, 440.0f, 0.0f, 1.0f);
+	generate_sine_wave(data, 880.0f, M_PI_2, 0.5f);
+	generate_sine_wave(data, 1320.0f, M_PI_4, 0.25f);
+}
+
+
+
+int main() {
+	Filter my_filter = Filter::create();
+	array<double, 8192> demo = { 0 };
+	generate_complex_wave(demo);
+	array<double, 8192> output = { 0 };
+	for (int i = 0; i < 3; i++)
+		output = my_filter.process(demo);
+	double sum = 0.0;
+	for (size_t i = 0; i < output.size(); i++) {
+		sum += std::abs(output[i]);
+	}
+	cout << sum << endl;
+	return 0;
+}
