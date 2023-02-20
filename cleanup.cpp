@@ -178,7 +178,7 @@ void same_mode_convolve(std::array<double, 204>& input1, std::array<double, 3>& 
 
 	// Zero-pad the input std::array
 	static std::array<double, 3 + 204 - 1> input1_padded;
-	std::memcpy(input1_padded.data() + (size2 - 1) / 2, input1.data(), input1.size() * sizeof(double));
+	std::copy(input1.begin(), input1.end(), input1_padded.begin() + (size2 - 1) / 2);
 
 	// Reverse the second input std::array
 	std::array<double, 3> reversed_input2;
@@ -198,7 +198,7 @@ void same_vector_convolve(std::vector<double>& input1, std::vector<double>&input
 
 	// Zero-pad the input vector
 	std::vector<double> input1_padded(size1 + size2 - 1, 0.0);
-	std::memcpy(input1_padded.data() + (size2 - 1) / 2, input1.data(), input1.size() * sizeof(double));
+	std::copy(input1.begin(), input1.end(), input1_padded.begin() + (size2 - 1) / 2);
 
 	// Reverse the second input vector
 	std::vector<double> reversed_input2(input2.rbegin(), input2.rend());
@@ -217,9 +217,7 @@ void sawtooth_filter(std::array<std::array<double, 257>, 192>& data, std::array<
 
 	const std::size_t count = sizeof(double) * 222 * 257;
 	const std::array<double, 222> zeroes{ 0.0 };
-	for (auto& row : scratch) {
-		std::memcpy(row.data(), zeroes.data(), count);
-	}
+
 
 	std::vector<double> filter = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
 
@@ -630,7 +628,7 @@ public:
 		rotate(begin(a.audio), begin(a.audio) + 8192, end(a.audio)); // Shift the values in the std::array 8192 values to the left.
 		//rapidly copy in the audio
 		std::size_t count = input.size() * sizeof(double);
-		std::memcpy(a.audio.data() + (a.audio.size() - input.size() - 8192), input.data(), count);
+		std::copy(std::begin(input), std::end(input), std::end(a.audio) - 8192);
 
 		copy(begin(input), end(input), end(a.audio) - 8192); // Copy the contents of input into the last 8192 elements of audio.
 		for (int i = 256; i < 25087 - 255; i++) {
