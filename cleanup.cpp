@@ -46,6 +46,7 @@ TLDR
 
 //please note: this project is still a work in process and is not finished.
 //please do not attempt to use this code for any purpose until this line is removed.
+//with lookup tables- precise? not precise? the code now requires 1 second to process 2 seconds of audio.
 
 
 
@@ -58,12 +59,57 @@ TLDR
 #include <array>
 
 # define M_PI           3.14159265358979323846  /* pi */
+#include <array>
+#include <cmath>
+
+// Define the size of the lookup table and the range of input values
+const int TABLE_SIZE = 65536;
+const double MIN_INPUT = 0.0;
+const double MAX_INPUT = 1024;
+const double STEP_SIZE = (MAX_INPUT - MIN_INPUT) / (TABLE_SIZE - 1);
+
+// Define the lookup table
+std::array<double, TABLE_SIZE> sin_table;
+std::array<double, TABLE_SIZE> cos_table;
+
+void init_tables() {
+	for (int i = 0; i < TABLE_SIZE; i++) {
+		double x = MIN_INPUT + i * STEP_SIZE;
+		sin_table[i] = std::sin(x);
+		cos_table[i] = std::cos(x);
+
+	}
+}
+
+double fast_sin(double x) {
+	// Map the input value to the index of the nearest entry in the lookup table
+	int index = (x - MIN_INPUT) / STEP_SIZE;
+	if (index < 0) index = 0;
+	if (index >= TABLE_SIZE) index = TABLE_SIZE - 1;
+
+	// Return the value from the lookup table
+	return sin_table[index];
+}
 
 
+void init_cos_table() {
+	for (int i = 0; i < TABLE_SIZE; i++) {
+		double x = MIN_INPUT + i * STEP_SIZE;
+		cos_table[i] = std::cos(x);
+	}
+}
 
+double fast_cos(double x) {
+	// Map the input value to the index of the nearest entry in the lookup table
+	int index = (x - MIN_INPUT) / STEP_SIZE;
+	if (index < 0) index = 0;
+	if (index >= TABLE_SIZE) index = TABLE_SIZE - 1;
 
-/*
-*i have not yet validated that the c++ performs as the python
+	// Return the value from the lookup table
+	return cos_table[index];
+}
+
+/*i have not yet validated that the c++ performs as the python
 def man(data: numpy.ndstd::array):
   arr = data
   arr = data[0:NBINS] #change this line so that any NAN are removed from arr
@@ -192,7 +238,7 @@ void same_mode_convolve(std::array<double, 204>& input1) {
 	}
 }
 
-void same_vector_convolve(std::vector<double>& input1, std::vector<double>&input2) {
+void same_vector_convolve(std::vector<double>& input1, const std::vector<double>&input2) {
 	int size1 = input1.size();
 	int size2 = input2.size();
 	int size_out = size1;
@@ -216,11 +262,9 @@ void same_vector_convolve(std::vector<double>& input1, std::vector<double>&input
 void sawtooth_filter(std::array<std::array<double, 257>, 192>& data, std::array<std::array<double, 222>, 257>& scratch, std::array<std::array<double, 257>, 192>& output, int& NBINS) {
 	// Initialize scratch to all zeros
 
-	const std::size_t count = sizeof(double) * 222 * 257;
-	const std::array<double, 222> zeroes{ 0.0 };
+	scratch.fill({ 0.0 });
 
-
-	std::vector<double> filter = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
+	static const std::vector<double> filter = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
 
 	// Transpose data into scratch
 	for (int i = 0; i < 192; i++) {
@@ -392,7 +436,7 @@ static void remove_outliers(std::array<int, 192>& a, const int& value, const int
 
 //compiles
 static void rfft(std::array<double, 257>& x, std::array<std::complex<double>, 257>& X) {
-	const int N = 257;//must equal the size of the input!
+	static constexpr int N = 257;//must equal the size of the input!
 
 	// Compute the FFT of the positive frequencies
 	for (int k = 0; k < N / 2; k++) {
@@ -403,8 +447,9 @@ static void rfft(std::array<double, 257>& x, std::array<std::complex<double>, 25
 		for (int n = 0; n < N; n++) {
 			// Compute the real and imaginary components of X[k]
 			double angle = 2 * M_PI * k * n / N;
-			real += x[n] * cos(angle);
-			imag -= x[n] * sin(angle);
+
+			real += x[n] * fast_cos(angle);
+			imag -= x[n] * fast_sin(angle);
 		}
 
 		// Store the computed real and imaginary components in X[k]
@@ -413,8 +458,9 @@ static void rfft(std::array<double, 257>& x, std::array<std::complex<double>, 25
 
 	// Compute the FFT of the negative frequencies by conjugating X[N/2 - k]
 	for (int k = 1; k < N / 2; k++) {
-		X[N / 2 - k] = std::conj(X[k]);
-	}
+		X[N / 2 - k] = (X[k]);
+	}  
+
 
 	X[N / 2] = -std::conj(X[N / 2 - 1]);
 }
@@ -423,14 +469,14 @@ static void rfft(std::array<double, 257>& x, std::array<std::complex<double>, 25
 //compiles
 static void irfft_fftshift_1d(std::array<std::complex<double>, 257>& X, std::array<double, 257>& temp) {
 	//note: this combines a simple inverse fft with a fftshift.
-	int N = 257;
+	static constexpr int N = 257;
 
 	// Compute the real part of the IFFT
 	for (int n = 0; n < N; n++) {
 		double real_part = 0;
 		for (int k = 0; k < N; k++) {
 			double angle = 2 * M_PI * k * n / N;
-			real_part += X[k].real() * cos(angle) - X[k].imag() * sin(angle);
+			real_part += X[k].real() * fast_cos(angle) - X[k].imag() * fast_sin(angle);
 		}
 		temp[n] = real_part / N;
 	}
@@ -582,7 +628,7 @@ public:
 
 		bool set;
 
-		std::array<std::array<double, 222>, 257> scratch = { 0 };
+		std::array<std::array<double, 222>, 257> scratch = {};
 		std::array<std::array<std::complex<double>, 257>, 192> stft_complex = {};
 		std::array<std::array<std::complex<double>, 257>, 64> stft_output = {};
 		std::array<std::array<std::complex<double>, 257>, 64> stft_zeros = {}; // for use in the scenario two where we're processing the residual buffer but without the audio
@@ -776,6 +822,7 @@ void generate_complex_wave(std::array<double, 8192>& data) {
 
 int main() {
 	Filter my_filter;
+	init_tables();
 	std::array<double, 8192> demo = { 0 };
 	generate_complex_wave(demo);
 	std::array<double, 8192> output = { 0 };
