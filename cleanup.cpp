@@ -807,7 +807,7 @@ int main() {
 
 	end_time = clock(); // get end time
 	float duration = (float)(end_time - start_time) / CLOCKS_PER_SEC * 1000.0; // calculate duration in milliseconds
-	std::cout << "Total value " << sum << std::endl;
+	std::cout << "Total value " << sum << std::endl; //this should always equal 3925.476302948533
 	std::cout << "Total execution time: " << duration << " milliseconds" << std::endl;
 	system("pause");
 
