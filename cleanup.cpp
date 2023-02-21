@@ -22,8 +22,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA.
 */
-//please note: this project is still a work in process and is not finished.
-//please do not attempt to use this code for any purpose until this line is removed.
 
 
 /*
