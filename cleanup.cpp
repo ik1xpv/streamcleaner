@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 * Cleanup. CPP version 0.02 2/21/23
 *  bugs to fix and behavior to refine:
 * tables generation at class instantiation - want it to generate and be part of binary - done
-* rfft behavior  - it doesnt fucking work
+* validate, if necessary correct rfft behavior
 * padding offsets for convolution - could be smaller but give same behavior
 * 	specifically, for the 2d convolve, we could consider only part of the array, based on NBINS
 * idomatic c++ to replace some of my craptacular code
@@ -100,6 +100,7 @@ private:
 
 	std::array<std::complex<float>, 257> temp_complex = {};
 	std::array<float, 257> temp_257 = {};
+	std::array<float, 128> temp_128 = {};
 
 	std::array<std::array<std::complex<float>, 192>, 257> stft_complex = {};
 	std::array<std::array<std::complex<float>, 64>, 257> stft_output = {};
@@ -386,8 +387,7 @@ private:
 	}
 
 
-	inline void istft(std::array<std::array<std::complex<float>, 64>, 257>& Sx) {
-
+	std::array<float, 8192> istft(std::array<std::array<std::complex<float>, 64>, 257>& Sx) {
 
 		// Reuse temp, eliminate xbuf
 		for (int i = 0; i < 64; i++) {
@@ -409,22 +409,32 @@ private:
 			for (int i = 0; i < 128; i++) {
 				std::swap(temp_257[i], temp_257[i + 128]);
 			}
-
-			int n = 0;
-			for (int j = 0; j < 257; j++) {
-				// Apply window and add to buffer
-				buffer[j % 128] += temp_257[i] * synthesis_window[j];
-
-				// Generate output samples and shift buffer left
-				if (j % 128 == 0) {
-					output[n] = buffer[0];
-					buffer[0] = buffer[128];
-					buffer[128] = 0.0;
-					n += 128;
-				}
+			for (int j = 0; j < 257; ++j) {
+				temp_257[j] = temp_257[j] * synthesis_window[j];
+			}
+			for (int j = 0; j < 128; ++j) {
+				temp_128[j] = temp_257[j];
+			}
+			for (int j = 0; j < 128; ++j) {
+				temp_128[j] += buffer[j];
+			}
+			// update state variables
+			for (int j = 0; j < 256; ++j) {
+				buffer[j] = buffer[j + 128];
+			}
+			for (int j = 256; j < 384; ++j) {
+				buffer[j] = 0.0;
+			}
+			for (int j = 0; j < 128; ++j) {
+				buffer[j + 256] += temp_257[j + 257 - 128];
+			}
+			for (int j = 0; j < 128; ++j) {
+				output[(i*128) + j] = temp_128[j];
 			}
 		}
+		return output;
 	}
+
 
 	//validated
 	inline int longestConsecutive(std::array<int, 192>& nums) {
@@ -667,6 +677,7 @@ public:
 				for (int e = 0; e < 2; e++) {
 
 					for (int i = 0; i < 200; i++) {
+						freqwise.fill({ 0 });
 						for (int j = 0; j < 295; j++) {
 							freqwise[j+13] = smooth_2d_1[j][i];
 
@@ -677,7 +688,7 @@ public:
 						for (int j = 0; j < 295; j++) {
 							smooth_2d_2[j][i] = freqwise[j+13];
 						}
-						freqwise.fill({ 0 });
+						
 					}
 
 
@@ -686,6 +697,7 @@ public:
 
 
 					for (int i = 0; i < 257; i++) {
+						entropy_padded.fill({ 0 });
 						for (int j = 0; j < 200; j++) {
 							entropy_padded[j + 3] = smooth_2d_1[i][j];
 
@@ -696,7 +708,7 @@ public:
 						for (int j = 0; j < 200; j++) {
 							smooth_2d_1[i][j] = entropy_padded[j + 3];
 						}
-						entropy_padded.fill({ 0 });
+						
 					}
 
 					for (int i = 0; i < 295; i++) {
@@ -724,21 +736,20 @@ public:
 				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 64; j++) {
 						//apply the mask
-						stft_output[i][j] = stft_complex[i][j+ 64] * previous[i][j+ 64];
+						std::complex<float> c1(stft_complex[i][j + 64].real()* previous[i][j + 64], stft_complex[i][j + 64].imag()* previous[i][j + 64]);
+						stft_output[i][j] = c1;
 					}
 				}
 
 				flag = 1; //update the flag because we are good to go
-				istft(stft_output);
-				return  output;
+				return  istft(stft_output);
 			}
 
 			if (flag == 1) {
 				// Compute product using the residual buffer since on the last round it contained data
-				istft(stft_output);
 
 				flag = 2; //update the flag since we processed zeros
-				return  output;
+				return  istft(stft_output);
 			}
 		}
 		//in the final case, we no longer need to process a residual buffer,
