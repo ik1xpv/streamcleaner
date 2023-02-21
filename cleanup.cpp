@@ -6,12 +6,12 @@
 	 
 	Copyright 2023 Joshuah Rainstar
 
-1.	The source code provided here (hereafter, "the software"), is copyrighted by Joshuah Rainstar (hereafter, “Author”)
+1.	The source code provided here (hereafter, "the Software"), is copyrighted by Joshuah Rainstar (hereafter, “Author”)
 	and ownership of all right, title and interest in and to the Software remains with Author.
 	
 2.	The definition of "Use" shall include copying, redistributing, modifying, compiling, interpreting, translating, making derivatives in other programming
 	languages of, making emulations based on measuring the capability of, reading, whiterooming(which means reading it, explaining what it does to someone else,
-	even an AI, where they make code to emulate the function which is original) and running or executing anything derived from or based on "The Software".
+	even an AI, where they make code to emulate the function which is original) and running or executing anything derived from or based on the Software.
 	
 3.	By Using the Software, you (hereafter, "User") agree to abide by the terms of this Agreement, which are as follows:
 
