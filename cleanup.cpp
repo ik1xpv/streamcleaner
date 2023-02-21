@@ -1,53 +1,78 @@
-/*
-	 Copyright 2023 Joshuah Rainstar
+/*       			ASSHOLE "Free but not really `Open Source` halfassed hacker's license - 
+		 By the grace of God, and the merciful love of the Savior, the Lord Jesus Christ, the software is free as in free beer. 
+	I made the code and I offer it freely to you, and you owe me nothing, but you cannot resell the beer, it was free!
+	If you supply the beer to someone else and get paid for the act of supplying the free beer to them, you must negotiate my share of pay with me.
+	whiteroom it or attempt by any shenaigans at all to implement my code into DSP hardware and make money for it and I will sue your ass off.
+	 
+	Copyright 2023 Joshuah Rainstar
+
 1.	The source code provided here (hereafter, "the software"), is copyrighted by Joshuah Rainstar (hereafter, “Author”)
 	and ownership of all right, title and interest in and to the Software remains with Author.
+	
 2.	The definition of "Use" shall include copying, redistributing, modifying, compiling, interpreting, translating, making derivatives in other programming
-	languages, making emulations based on measuring the capability of, and running or executing anything derived from or based on "The Software".
-3.	By using or copying the Software, you (hereafter, "User") agree to abide by the terms of this Agreement.
-4.	By the grace of God, and the merciful love of the Savior, the Lord Jesus Christ, the software is free as in free beer.
-5.	The Users agree that "the software" shall include any part of this code not on 2/19/23 part of either the c++ language specification or standard library.
-6.	Author grants to User a royalty-free, nonexclusive right to use the software for academic, research and personal uses,subject to the following conditions:
-7:      You may not use the software for any purpose without including this license.
-8.	Any binaries or derivative products produced by the compilation, translation, or emulation, with any tool, including AI, of the Software,
-	shall be subject to the same Agreement, and shall remain copywrited by the Author.
-9.	User acknowledges that the Software is supplied "as is," without any absolute guarantee of support services from Author.
-10.	Author makes no representations or warranties, express or implied, including, without limitation,
+	languages of, making emulations based on measuring the capability of, reading, whiterooming(which means reading it, explaining what it does to someone else,
+	even an AI, where they make code to emulate the function which is original) and running or executing anything derived from or based on "The Software".
+	
+3.	By Using the Software, you (hereafter, "User") agree to abide by the terms of this Agreement, which are as follows:
+
+4.      You may not use the software for any purpose without including this license.
+
+
+5.	The Agreement will terminate immediately upon User's breach of, or non-compliance with, any of its terms.
+	User may be held liable for any copyright infringement or the infringement of any other proprietary rights in the Software.
+	
+6.	Author grants to User a royalty-free, nonexclusive right to Use the software for any purpose, subject to the following conditions:
+	
+7.	If the User represents a government or legally incorporated business entity, the User agrees that, outside of contractual negotiation with Author,
+	the software may only be Used on the machines in one building that the User operates in.
+	
+8.	For fire departments, emergency rescue, and paramedic/rescue only operations only, which do not engage in law enforcement or military activities,
+	and for direct usage only, where the User is the entity itself and not a contractor offering them services, part 7 of the 
+	Agreement shall not appply and user is excempt.	If, however, at any time, the system integrating the software is contractually
+	sub-delegated at cost to a third party to operate,  the user agrees their exception from the provisions in part 7 of the agreement shall terminate.
+	
+9.	Regardless of the location or juresdiction of the User's nation, the User agrees to honor the Agreement, and to be subject to it as if it were agreed to
+	for purposes, activities, uses, and contracts within and subject to, construed and enforced in accordance with the law of the state of Colorado.
+	The parties irrevocably consent to the exclusive jurisdiction of the state or federal courts located in Denver for all disputes concerning this agreement.
+	
+10.	User acknowledges that the Software is supplied "as is," without any absolute guarantee of support services from Author.
+	Author makes no representations or warranties, express or implied, including, without limitation,
 	any representations or warranties of the merchantability or fitness for any particular purpose,
 	or that the application of the software, will not infringe on any patents or other proprietary rights of others.
+	
 11.	Author shall not be held liable for direct, indirect, incidental or consequential damages arising from any claim by User
 	or any third party with respect to uses allowed under the Agreement, or from any use of the Software.
+	
 12.	User agrees to fully indemnify and hold harmless Author from and against any and all claims, demands, suits, losses, damages,
 	costs and expenses arising out of the User's use of the Software, including, without limitation, arising out of the User's modification of the Software.
-13.	User may modify the Software and distribute that modified work to third parties provided that: (a) if posted separately,
-	it clearly acknowledges that it contains material copyrighted by the Author (b) User agrees to notify he Author of the distribution,
-	and (c) User clearly notifies secondary users that such modified work is not the original Software by including the License Agreement.
-14.	The Agreement will terminate immediately upon User's breach of, or non-compliance with, any of its terms.
-	User may be held liable for any copyright infringement or the infringement of any other proprietary rights in the Software
-	that is caused or facilitated by the User's failure to abide by the terms of the Agreement.
-15.	The Agreement will be construed and enforced in accordance with the law of the state of Colorado.
-	The parties irrevocably consent to the exclusive jurisdiction of the state or federal courts located in Denver for all disputes concerning this agreement.
-16.	User agrees not to include, bundle, integrate, or redistribute the software as part of any package, project, program or suite which
-		is sold, leased, rented, or otherwise charged for.
-17.	User may include the software as part of a package, project, program, or suite for a client which has paid in other ways,
-	such as for a goverment	contract, where the work or service contract is what is paid for and not the Software, provided that the User
-	negotiate with the Author providing a fair and equitable share of profit as a royalty consisting of 1% of the gross value of the contract.
-TLDR
-	This may seem like a lot and it may dissuade you from using the code because you feel it is not permissive enough.
-	Nothing in this stops you or anyone else from using, compiling, redistributing, or modifying the code.
-	You must include the License. If you make money off of it through indirect means, you must share 1% of it.
-	If you charge for it directly, or anyone else does so, I will sue them- I do not permit this.
-	I wrote this code for your use and in my total boredom and for no other reasons. I would never do this for a job.
-	I will never, ever revise the terms of this agreement or charge for it. To prove this...
+	
+13.	The user agrees that the definition of `modified work` shall include any part of the Software implemented as part of any other program,
+	shall include any works made by reverse engineering, emulating, examining, or otherwise whiteroom-implementing the Software, 
+	including but not limited to the use of Artificial Intelligence, in addition to any modified work based upon the Software.
 
-18.	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive,
+14.	For the purposes of `modified work` as agreed to in part 10 of the Agreement, User agrees to the following additional conditions:
+	User may Use, modify the Software and make `modified work` with regards to the Software and and distribute it to to third parties provided that: 
+	(a) If posted separately, it clearly acknowledges that it contains material copyrighted by the Author,
+	(b) User agrees to notify the Author of the distribution, 
+	(c) User clearly notifies secondary users that such modified work is not the original Software by including the License Agreement,
+	(d) User agrees that any `modified work` must either be donationware, freeware, open source, or not provided at cost.
+	(e) User agrees that with regards to `DSP` devices which incorporate a `modified work` based upon the Use of the Software,
+	the Author must be paid 10% of the retail cost of every unit ever sold by User.
+	(e) User agrees to provide Author with a non-irrevocable non-exclusive interest in ownership of the `modified work`,  which is limited to the following condition:
+	(f) User agrees that if they are paid for a contract or work that involves the Use of the Software or a `modified work` derived from the Software, 
+	or any other work in a chain of Uses of said works which ultimately are derived from any `modified work` which was at one time produced by the Use of the Software,
+	the User will provide the Author with 1% of the value of the contract.
+	 
+15. 	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive,
 	which is unlikely, shall be considered dually licensed under the MIT license and the GPL-2.0, in perpetuum.
+16.	In the event that the author finds a suitable lover and helpmate to their own preference, the author agrees to render the agreement null and void
+	and to license the code under the MIT license and the GPL-2.0.
+17.	The author does not give a shit about what you think of the license agreement and User agrees not to complain about it.
 */
 
 //please note: this project is still a work in process and is not finished.
 //please do not attempt to use this code for any purpose until this line is removed.
-//note that 2 seconds of data is computed in 0.6 seconds of real time. how is anything ever built in this language?
-
+//note: now is fast, but requires 512kb worth of lookup tables. Is this a suitable behavior? 
 
 #include <iostream>
 #include <vector>
@@ -58,6 +83,34 @@ TLDR
 #include <array>
 
 # define M_PI           3.14159265358979323846  /* pi */
+
+constexpr int TABLE_SIZE = 256 * 256;
+
+
+// Define the lookup tables
+std::array<float, TABLE_SIZE> sin_table;
+std::array<float, TABLE_SIZE> cos_table;
+
+void init_tables() {
+	float angle = 0.0;
+	for (int k = 0; k < 257; k++) {
+		for (int n = 0; n < 257; n++) {
+			angle = 2 * M_PI * k * n / 257.0;
+			sin_table[((1 + k) * (1 + n)) - 1] = std::sin(angle);
+			cos_table[((1 + k) * (1 + n)) - 1] = std::cos(angle);
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
 
 /*i have not yet validated that the c++ performs as the python
 def man(data: numpy.ndstd::array):
@@ -386,20 +439,20 @@ static void remove_outliers(std::array<int, 192>& a, const int& value, const int
 
 //compiles
 static void rfft(std::array<float, 257>& x, std::array<std::complex<float>, 257>& X) {
-	static constexpr int N = 257;//must equal the size of the input!
 
 	// Compute the FFT of the positive frequencies
-	for (int k = 0; k < N / 2; k++) {
+	for (int k = 0; k < 128; k++) {
 		float real = 0;
 		float imag = 0;
 
 		// Loop over each sample index n in the input std::array x
-		for (int n = 0; n < N; n++) {
+		for (int n = 0; n < 257; n++) {
 			// Compute the real and imaginary components of X[k]
-			float angle = 2 * M_PI * k * n / N;
+			//angle consists of 32896 possible floats generated with 2* M_Pi * k(0...256) * n(0...256) / 257; 0.0...794.8596136460028
+			//and storing it in index [k*n], and then obtaining it using retrieve_sin or retrieve_cos [k*n]
 
-			real += x[n] * std::cos(angle);
-			imag -= x[n] * std::sin(angle);
+			real += x[n] * cos_table[((1 + k) * (1 + n)) - 1];
+			imag -= x[n] * sin_table[((1 + k) * (1 + n)) - 1];
 		}
 
 		// Store the computed real and imaginary components in X[k]
@@ -407,37 +460,33 @@ static void rfft(std::array<float, 257>& x, std::array<std::complex<float>, 257>
 	}
 
 	// Compute the FFT of the negative frequencies by conjugating X[N/2 - k]
-	for (int k = 1; k < N / 2; k++) {
-		X[N / 2 - k] = (X[k]);
+	for (int k = 1; k < 128; k++) {
+		X[128 - k] = (X[k]);
 	}  
-
-
-	X[N / 2] = -std::conj(X[N / 2 - 1]);
+	X[128] = -std::conj(X[128]);
+	X[256] = std::complex<float> ((2.0 * X[255].real()) - X[254].real()),((2.0 * X[255].imag()) - X[254].imag()); //is this correct numpy behavior?
 }
 
-
-//compiles
 static void irfft_fftshift_1d(std::array<std::complex<float>, 257>& X, std::array<float, 257>& temp) {
 	//note: this combines a simple inverse fft with a fftshift.
-	static constexpr int N = 257;
 
 	// Compute the real part of the IFFT
-	for (int n = 0; n < N; n++) {
+	for (int n = 0; n < 257; n++) {
 		float real_part = 0;
-		for (int k = 0; k < N; k++) {
-			float angle = 2 * M_PI * k * n / N;
-			real_part += X[k].real() * std::cos(angle) - X[k].imag() * std::sin(angle);
+		for (int k = 0; k < 257; k++) {
+			//float angle = 2 * M_PI * k * n / 257;
+			//a different lookup table is needed here
+			//angle consists of 65536 possible floats generated with 2* M_Pi * k(0...256) * n(0...256) / 257, 0.0.. 1602.2367015226512
+			//and storing it in index [k*n], and then obtaining it using retrieve_sin_inv(int k*n) or retrieve_cos_inv(int,k*n)
+
+			real_part += X[k].real() * cos_table[((1 + k) * (1 + n)) - 1] - X[k].imag() * sin_table[((1 + k) * (1 + n)) - 1];
 		}
-		temp[n] = real_part / N;
+		temp[n] = real_part / 257.0;
 	}
+	// Perform FFT shift for a fixed size 
 
-	// Perform FFT shift
-	int pivot = (N % 2 == 0) ? (N / 2) : ((N - 1) / 2);
-	int right_half = N - pivot;
-	int left_half = pivot;
-
-	for (int i = 0; i < right_half; i++) {
-		std::swap(temp[i], temp[i + left_half]);
+	for (int i = 0; i < 128; i++) {
+		std::swap(temp[i], temp[i + 128]);
 	}
 }
 
@@ -770,6 +819,7 @@ void generate_complex_wave(std::array<float, 8192>& data) {
 #include <ctime>
 
 int main() {
+	init_tables(); //must be called to set up the sin and cos tables. Otherwise, you must remap to sin and cos.
 	Filter my_filter;
 	std::array<float, 8192> demo = { 0 };
 	generate_complex_wave(demo);
