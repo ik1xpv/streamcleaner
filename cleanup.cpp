@@ -10,7 +10,7 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN 
 */
 /*
 Copyright 2023 Joshuah Rainstar
-This program is free software; you can redistribute itand /or
+This program is free software; you can redistribute it and /or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
 of the License, or (at your option) any later version.
@@ -22,14 +22,14 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA.
 */
+//please note: this project is still a work in process and is not finished.
+//please do not attempt to use this code for any purpose until this line is removed.
 
 
 /*
-* Cleanup. CPP version 0.01
-*  execute time with intelDcc compiler, all things optimized.. 153ms of time to compute 2800ms of audio. This is 18x speedup
-*  the validity of the results- the results are incorrect. the function for the test outputs zeros.
-*  it should be outputting 3925.476302948533, all things equal to the python.
-* the use of doubles in the python just makes the code run a little faster for some reason, the precision doesnt change anything.
+* Cleanup. CPP version 0.02
+*  execute time with intelDcc compiler, all things optimized.. 163ms of time to compute 2800ms of audio. This is 18x speedup
+*  all code has been inlined or implemented, now for some in depth testing
 *
 *
 */
@@ -43,139 +43,22 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 #include <array>
 
 
-
-/*i have not yet validated that the c++ performs as the python
-def man(data: numpy.ndstd::array):
-  arr = data
-  arr = data[0:NBINS] #change this line so that any NAN are removed from arr
-  v = arr[numpy.nonzero(arr)] # if v is empty, return 0.0 early
-  t = numpy.median(v)
-
-  # Compute the median of the absolute of arr minus t - this is NOT median absolute deviation
-  non_zero_diff = numpy.abs(arr- t)
-  e = numpy.median(non_zero_diff)
-
-  # Compute the  square root of the mean of the squared absolute deviation from e
-  x = numpy.square(numpy.abs(arr - e))
-  a = numpy.sqrt(numpy.mean(x))
-return a
-*/
-
-
-//"Median Absolute deviation root mean square with Nonzero median thresholding"
-float MAN(std::array<float, 257>& data, int& NBINS) {
-	std::array<float, 257> arr;
-	int n = 0;
-
-	// Remove NaN values from arr
-	for (int i = 0; i < NBINS; i++) {
-		if (!isnan(data[i])) {
-			arr[n] = data[i];
-			n++;
-		}
-	}
-
-	// If v is empty, return 0.0 early
-	if (n == 0) {
-		return 0.0;
-	}
-
-	// Compute the median of arr
-	sort(arr.begin(), arr.begin() + n);
-	float t = (n % 2 == 0) ? (arr[n / 2] + arr[(n / 2) - 1]) / 2.0 : arr[n / 2];
-
-	// Compute the median of the absolute difference between arr and t
-	std::array<float, 257> non_zero_diff;
-	for (int i = 0; i < n; i++) {
-		non_zero_diff[i] = abs(arr[i] - t);
-	}
-	sort(non_zero_diff.begin(), non_zero_diff.begin() + n);
-	float e = (n % 2 == 0) ? (non_zero_diff[n / 2] + non_zero_diff[(n / 2) - 1]) / 2.0 : non_zero_diff[n / 2];
-
-	// Compute the square root of the mean of the squared absolute deviation from e
-	float sum_x = 0.0;
-	for (int i = 0; i < n; i++) {
-		float abs_diff = abs(arr[i] - e);
-		sum_x += abs_diff * abs_diff;
-	}
-	float a = sqrt(sum_x / n);
-
-	return a;
-}
-
-void threshold(std::array<std::array<float, 257>, 192>& data, int& NBINS, float& threshold) {
-	// Compute the median of the absolute values of the non-zero elements
-	float median = 0.0;
-	int count = 0;
-	for (int j = 0; j < NBINS; j++) {
-		for (int i = 0; i < 192; i++) {
-			float val = data[i][j];
-			if (val != 0.0) {
-				median += abs(val);
-				count++;
-			}
-		}
-	}
-	if (count == 0) {
-		threshold = 0.0;
-		return;
-	}
-	median /= count;
-
-	// Compute the threshold using the formula from the original implementation
-	float sum = 0.0;
-	int n = 0;
-	for (int j = 0; j < NBINS; j++) {
-		for (int i = 0; i < 192; i++) {
-			float val = data[i][j];
-			if (!isnan(val) && isfinite(val)) {
-				float diff = abs(val - median);
-				sum += diff * diff;
-				n++;
-			}
-		}
-	}
-	if (n == 0) {
-		threshold = 0.0;
-		return;
-	}
-	threshold = sqrt(sum / n) + median;
-}
-
-
-
-
-
-void same_vector_convolve(std::vector<float>& input1, const std::vector<float>&input2) {
-	int size1 = input1.size();
-	int size2 = input2.size();
-	int size_out = size1;
-
-	// Zero-pad the input vector
-	std::vector<float> input1_padded(size1 + size2 - 1, 0.0);
-	std::copy(input1.begin(), input1.end(), input1_padded.begin() + (size2 - 1) / 2);
-
-	// Reverse the second input vector
-	std::vector<float> reversed_input2(input2.rbegin(), input2.rend());
-
-	// Compute the convolution using inner_product and transform
-	for (int i = 0; i < size_out; i++) {
-		float sum = std::inner_product(input1_padded.begin() + i, input1_padded.begin() + i + size2, reversed_input2.begin(), 0.0);
-		input1[i] = sum;
-	}
-}
-
-
-
-
-
-
 # define M_PI           3.14159265358979323846  /* pi */
 
-
+//Documentation
+//Instantiate with Filter filter;
+// use with filter.process(input).
+// Function accepts and returns 8192 values of float.
+// Function is not warranted to work at anything other than 48000 sample rate.
+// Class inserts a 170ms latency(fixed, not reducible).
+// filter.const_1 exposes a constant to allow you to determine what is noise and what should be allowed as signal.
+// Note that this does not change the thresholding approach at all, which needs to be changed but thats outside the scope of my intentions.
+// filter.NBINS_1 exposes the width of the filter. Set to 1 less than the width of your bandpass filter or there abouts.
+// Recommended default is 37, for 3646hz of effective usable bandwidth. It's ok to use a wider bandpass filter, also.
+//
 class  Filter
 {
-private:
+	private:
 	//Filter Class Commentary
 	//Stack size is ~200kb. We are not going to use the heap and play dangle the heap.
 	//Everything is either allocated within an(external) function, passed by value as input to our function, 
@@ -213,7 +96,6 @@ private:
 
 	float t=0, initial=0, multiplier=0, MAXIMUM= 0.6122169028112414, constant=0, CONST = 0.057,test=0, thresh1 = 0.0;
 	int flag=0, count=0, NBINS_last=0, truecount = 0;
-	bool set = true;
 
 
 	std::array<float, 257> temp_257 = {};
@@ -224,7 +106,10 @@ private:
 	std::array<std::array<float, 257>, 192> stft_real = {};
 	std::array<std::array<float, 257>, 192> smoothed = {};
 	std::array<std::array<float, 257>, 192> previous = {};
-
+	std::array<std::array<float, 295>, 200> smooth_2d_1 = {};
+	std::array<std::array<float, 295>, 200> smooth_2d_2 = {};
+	std::array<float, 13> filter_long = { 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0 };
+	std::array<float, 295> freqwise = {};
 
 	// Define the lookup tables
 	std::array<float, 66049> sin_table = {}; //257 x 257
@@ -245,6 +130,85 @@ private:
 			cos_table[k] = std::sin(cos_table[k]);
 
 		}
+	}
+
+	inline float MAN(std::array<float, 257>& data, int& NBINS) {
+		std::array<float, 257> arr;
+		int n = 0;
+
+		// Remove NaN values from arr
+		for (int i = 0; i < NBINS; i++) {
+			if (!isnan(data[i])) {
+				arr[n] = data[i];
+				n++;
+			}
+		}
+
+		// If v is empty, return 0.0 early
+		if (n == 0) {
+			return 0.0;
+		}
+
+		// Compute the median of arr
+		sort(arr.begin(), arr.begin() + n);
+		float t = (n % 2 == 0) ? (arr[n / 2] + arr[(n / 2) - 1]) / 2.0 : arr[n / 2];
+
+		// Compute the median of the absolute difference between arr and t
+		std::array<float, 257> non_zero_diff;
+		for (int i = 0; i < n; i++) {
+			non_zero_diff[i] = abs(arr[i] - t);
+		}
+		sort(non_zero_diff.begin(), non_zero_diff.begin() + n);
+		float e = (n % 2 == 0) ? (non_zero_diff[n / 2] + non_zero_diff[(n / 2) - 1]) / 2.0 : non_zero_diff[n / 2];
+
+		// Compute the square root of the mean of the squared absolute deviation from e
+		float sum_x = 0.0;
+		for (int i = 0; i < n; i++) {
+			float abs_diff = abs(arr[i] - e);
+			sum_x += abs_diff * abs_diff;
+		}
+		float a = sqrt(sum_x / n);
+
+		return a;
+	}
+
+	inline void threshold(std::array<std::array<float, 257>, 192>& data, int& NBINS, float& threshold) {
+		// Compute the median of the absolute values of the non-zero elements
+		float median = 0.0;
+		int count = 0;
+		for (int j = 0; j < NBINS; j++) {
+			for (int i = 0; i < 192; i++) {
+				float val = data[i][j];
+				if (val != 0.0) {
+					median += abs(val);
+					count++;
+				}
+			}
+		}
+		if (count == 0) {
+			threshold = 0.0;
+			return;
+		}
+		median /= count;
+
+		// Compute the threshold using the formula from the original implementation
+		float sum = 0.0;
+		int n = 0;
+		for (int j = 0; j < NBINS; j++) {
+			for (int i = 0; i < 192; i++) {
+				float val = data[i][j];
+				if (!isnan(val) && isfinite(val)) {
+					float diff = abs(val - median);
+					sum += diff * diff;
+					n++;
+				}
+			}
+		}
+		if (n == 0) {
+			threshold = 0.0;
+			return;
+		}
+		threshold = sqrt(sum / n) + median;
 	}
 
 	inline void find_max(const std::array<std::array<float, 257>, 192>& data, float& maximum) {
@@ -497,29 +461,29 @@ public:
 		init_tables();
 		std::copy(std::begin(logit_37), std::end(logit_37), std::begin(logit_distribution));
 	}
-
+	float CONST_1 = 0.057;
+	int NBINS_1 = 37;
 
 		//TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
 
-	std::array<float, 8192> process(std::array<float, 8192> input, float CONST_1 = 0.057, int NBINS = 37) {
-		if ((NBINS != NBINS_last)) { set = false; }//keep track of changes to what the function is called with
+	std::array<float, 8192> process(std::array<float, 8192> input) {
+		if (CONST_1 > 1) { CONST_1 = 1.0; }//make sure sane inputs
+		if (CONST_1 < 0) { CONST_1 = 0.001; }
+		CONST = CONST_1; //if const-1 is changed this means it will only update once per cycle
+		if (NBINS_1 > 257) { NBINS_1 = 257; }//make sure sane inputs
+		if (NBINS_1 < 5) { NBINS_1 = 5; }//you cant use less than 5 bins!
 
-
-		if (set == false) {
-			if (NBINS == 37) {//let's fill the std::array
-				NBINS_last = NBINS;
-				CONST = CONST_1;
+		if (NBINS_1 != NBINS_last){//same thing for nbins- only considered once per cycle
+			if (NBINS_1 == 37) {//let's fill the std::array
+				NBINS_last = NBINS_1;
 				std::copy(std::begin(logit_37), std::end(logit_37), std::begin(logit_distribution));
 				MAXIMUM = 0.6122169028112414;
-				set = true;
 			}
 			else {
 				//generate and set logit, entropy maximum
-				NBINS_last = NBINS;
-				CONST = CONST_1;
+				NBINS_last = NBINS_1;
 				generate_true_logistic();
 				determine_entropy_maximum();
-				set = true;
 
 			}
 		}
@@ -591,8 +555,8 @@ public:
 						timewise_convolve_13[j + 15] = stft_real[i][j];
 
 					}
-					for (int k = 0; k < 192+15; k++) {
-						timewise_convolve_13[k] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, timewise_convolve_13.begin(), 0.0) / 7.0;
+					for (int k = 0; k < 192 + 15; k++) {
+						timewise_convolve_13[k] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, sawtooth_filter.begin(), 0.0) / 7.0;
 					}
 					for (int j = 0; j < 192; j++) {
 						smoothed[i][j] = timewise_convolve_13[j + 15];
@@ -624,7 +588,7 @@ public:
 
 					}
 					for (int k = 0; k < 192 + 15; k++) {
-						timewise_convolve_13[i] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, timewise_convolve_13.begin(), 0.0) / 7.0;
+						timewise_convolve_13[i] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 13, sawtooth_filter.begin(), 0.0) / 7.0;
 					}
 					for (int j = 0; j < 192; j++) {
 						smoothed[i][j] = timewise_convolve_13[j + 15];
@@ -637,16 +601,12 @@ public:
 
 				fast_peaks(smoothed, smoothed);
 
-				for (int i = 0; i < NBINS; i++) {
+				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 192; j++) {
 						initial = smoothed[i][j] * multiplier;
 						if (previous[i][j] < initial) {
 							previous[i][j] = initial;
 						}
-						else {
-
-						}
-
 					}
 				}
 				for (int i = 0; i < NBINS_last; i++) {
@@ -664,7 +624,7 @@ public:
 				}
 
 				//todo: implement the convolve_2d_ padded function here on the contents of previous.
-				/* 
+				/*
 				*   mask = convolve_custom_filter_2d(mask,13,3,3)
 
 					@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64))
@@ -676,9 +636,9 @@ public:
 						padded[E:-E,N:-N] = array[:]
 
 						return padded
-				
-				
-				
+
+
+
 				@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64,numba.int64))
 				def convolve_custom_filter_2d(data: numpy.ndarray, N : int, M : int, O : int) :
 					E = N * 2
@@ -698,14 +658,16 @@ public:
 						c[:] = (same_convolution_float_1d(c[:], numpy.ones(M, dtype = numpy.float64)) / M)[:]
 						padded = (normal + normal_t.T.copy()) / 2
 						return padded[F:-F, E : -E]
-				*/ 
+				*/
 				//instructions:
 				// you will need two additional 2d arrays the same size.
 				// remember our second dimension is time.
 				// fill the centermost elements of both with `previous`.
 				// time is convolved with an array of three, frequency with an array of 13.
 				// so the arrays each need to be 257+13+13+same padding, by 192+3+3+ same padding.
-				// 
+				// 				295 offset of 6
+				//200 offset of 1
+
 				// convolve each row with 13 in one array, then each column by 3 in the other.
 				// add the results together and divide by two.
 				// repeat three times.
@@ -713,9 +675,67 @@ public:
 
 
 
+				for (int i = 0; i < 257; i++) {
+					for (int j = 0; j < 192; j++) {
+						//apply the mask
+						smooth_2d_1[i + 6][j + 1] = previous[i][j];
+						smooth_2d_2[i + 6][j + 1] = previous[i][j];
+
+					}
+				}
+
+				for (int i = 0; i < 2; i++){
+
+				for (int i = 0; i < 192; i++) {
+					for (int j = 0; j < 257; j++) {
+						freqwise[j + 13] = smooth_2d_1[j][i];
+
+					}
+					for (int k = 0; k < 192 + 13; k++) {
+						freqwise[i] = std::inner_product(freqwise.begin() + k, freqwise.begin() + k + 13, filter_long.begin(), 0.0) / 13.0;
+					}
+					for (int j = 0; j < 295; j++) {
+						smooth_2d_2[j][i] = freqwise[j + 13];
+					}
+					freqwise.fill({ 0 });
+				}
+
+				entropy_padded.fill({ 0 }); //we will reuse entropy padded for this step cause we dont need it for the rest of the loop
+				for (int i = 0; i < 192; i++) {
+					for (int j = 0; j < 257; j++) {
+						entropy_padded[i + 3] = smooth_2d_1[i][j];
+
+					}
+					for (int k = 0; k < 192 + 13; k++) {
+						entropy_padded[i] = std::inner_product(entropy_padded.begin() + i, entropy_padded.begin() + i + 3, entropy_filter.begin(), 0.0) / 3.0;
+					}
+					for (int j = 0; j < 295; j++) {
+						smooth_2d_1[i][j] = entropy_padded[i + 3];
+					}
+					entropy_padded.fill({ 0 });
+				}
+
+				for (int i = 0; i < 257; i++) {
+					for (int j = 0; j < 192; j++) {
+						//apply the mask
+						smooth_2d_1[i + 6][j + 1] = (smooth_2d_1[i + 6][j + 1] + smooth_2d_2[i + 6][j + 1]) / 2.0;
+
+					}
+				}
+			}
+
+				for (int i = 0; i < 257; i++) {
+					for (int j = 0; j < 192; j++) {
+						//apply the smoothing
+						previous[i][j] = smooth_2d_1[i + 6][j + 1] = previous[i][j];
+
+					}
+				}
+
+
 				stft(audio_padded, shifted_hann_window, stft_complex);
 
-				for (int i = 0; i < NBINS; i++) {
+				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 64; j < 128; j++) {
 						//apply the mask
 						stft_output[i][j] = stft_complex[i][j] * previous[i][j];
