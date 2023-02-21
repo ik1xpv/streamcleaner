@@ -65,8 +65,8 @@
 	 
 15. 	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive,
 	which is unlikely, shall be considered dually licensed under the MIT license and the GPL-2.0, in perpetuum.
-16.	In the event that the author finds a suitable lover and helpmate to their own preference, the author agrees to render the agreement null and void
-	and to license the code under the MIT license and the GPL-2.0.
+16.	In the event that the Author both has a suitable lover and helpmate to their own preference, and has also exceeded a 
+	lifetime collective income after taxes of 2,799,360 USD, Author agrees to relicense the code as dually licensed under the MIT license and the GPL-2.0, in perpetuum.
 17.	The author does not give a shit about what you think of the license agreement and User agrees not to complain about it.
 */
 
