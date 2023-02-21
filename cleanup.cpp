@@ -26,10 +26,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 //please do not attempt to use this code for any purpose until this line is removed.
 
 
+
 /*
 * Cleanup. CPP version 0.02 2/21/23
 *  bugs to fix and behavior to refine:
-* tables generation at class instantiation - want it to generate and be part of binary
+* tables generation at class instantiation - want it to generate and be part of binary - done
 * rfft behavior  - it doesnt fucking work
 * padding offsets for convolution - could be smaller but give same behavior
 * 	specifically, for the 2d convolve, we could consider only part of the array, based on NBINS
@@ -112,10 +113,25 @@ private:
 	std::array<float, 295+27> freqwise = {};
 
 	// Define the lookup tables
-	std::array<float, 66049> sin_table = {}; //257 x 257
-	std::array<float, 66049> cos_table = {};
+	 std::array<float, 66049> sin_table = {}; //257 x 257
+	 std::array<float, 66049> cos_table = {};
 	//fill the tables
 
+	constexpr void init_tables() {
+		float angle = 0.0;
+		for (int k = 0; k < 257; k++) {
+			for (int n = 0; n < 257; n++) {
+				angle = 2 * M_PI * k * n / 257.0;
+				sin_table[((1 + k) * (1 + n)) - 1] = angle;
+				cos_table[((1 + k) * (1 + n)) - 1] = angle;
+			}
+		}
+		for (int k = 0; k < 66049; k++) {
+			sin_table[k] = std::sin(sin_table[k]);
+			cos_table[k] = std::sin(cos_table[k]);
+
+		}
+	}
 
 
 	inline float MAN(std::array<float, 257>& data, int& NBINS) {
@@ -457,24 +473,9 @@ private:
 	}
 
 
-
 public:
-
-	void init_tables() {
-		float angle = 0.0;
-		for (int k = 0; k < 257; k++) {
-			for (int n = 0; n < 257; n++) {
-				angle = 2 * M_PI * k * n / 257.0;
-				sin_table[((1 + k) * (1 + n)) - 1] = angle;
-				cos_table[((1 + k) * (1 + n)) - 1] = angle;
-			}
-		}
-		for (int k = 0; k < 66049; k++) {
-			sin_table[k] = std::sin(sin_table[k]);
-			cos_table[k] = std::sin(cos_table[k]);
-
-		}
-	}
+	MYDLL_API() { init_tables(); }
+	
 
 
 	void setConstant(float val) {
@@ -776,7 +777,6 @@ void generate_sine_wave(std::array<float, 8192>& data, float freq, float phase, 
 
 int main() {
 	MYDLL_API my_filter;
-	my_filter.init_tables();
 	std::array<float, 8192> demo = { 0 };
 	generate_sine_wave(demo, 440.0f, 0.0f, 1.0f);
 	generate_sine_wave(demo, 880.0f, M_PI_2, 0.5f);
@@ -787,7 +787,7 @@ int main() {
 	start_time = clock(); // get start time
 
 	double sum = 0;
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 20; i++) {
 		output = my_filter.process(demo); // execute the function
 		for (int i = 0; i < 8192; i++) {
 			sum = sum + abs(output[i]);
