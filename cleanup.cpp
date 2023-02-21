@@ -1,78 +1,75 @@
-/*       			ASSHOLE "Free but not really `Open Source` halfassed hacker's license - 
-		 By the grace of God, and the merciful love of the Savior, the Lord Jesus Christ, the software is free as in free beer. 
+/*       			The Asshole "Free but not really `Open Source`" Hacker's License Agreement
+		 By the grace of God, and the merciful love of the Savior, the Lord Jesus Christ, the software is free as in free beer.
 	I made the code and I offer it freely to you, and you owe me nothing, but you cannot resell the beer, it was free!
 	If you supply the beer to someone else and get paid for the act of supplying the free beer to them, you must negotiate my share of pay with me.
 	whiteroom it or attempt by any shenaigans at all to implement my code into DSP hardware and make money for it and I will sue your ass off.
-	 
-	Copyright 2023 Joshuah Rainstar
 
+	Copyright 2023 Joshuah Rainstar
 1.	The source code provided here (hereafter, "the Software"), is copyrighted by Joshuah Rainstar (hereafter, “Author”)
 	and ownership of all right, title and interest in and to the Software remains with Author.
-	
+
 2.	The definition of "Use" shall include copying, redistributing, modifying, compiling, interpreting, translating, making derivatives in other programming
 	languages of, making emulations based on measuring the capability of, reading, whiterooming(which means reading it, explaining what it does to someone else,
 	even an AI, where they make code to emulate the function which is original) and running or executing anything derived from or based on the Software.
-	
+
 3.	By Using the Software, you (hereafter, "User") agree to abide by the terms of this Agreement, which are as follows:
-
-4.      You may not use the software for any purpose without including this license.
-
-
+4.	You may not use the software for any purpose without including this license.
 5.	The Agreement will terminate immediately upon User's breach of, or non-compliance with, any of its terms.
 	User may be held liable for any copyright infringement or the infringement of any other proprietary rights in the Software.
-	
+
 6.	Author grants to User a royalty-free, nonexclusive right to Use the software for any purpose, subject to the following conditions:
-	
+
 7.	If the User represents a government or legally incorporated business entity, the User agrees that, outside of contractual negotiation with Author,
 	the software may only be Used on the machines in one building that the User operates in.
-	
+
 8.	For fire departments, emergency rescue, and paramedic/rescue only operations only, which do not engage in law enforcement or military activities,
-	and for direct usage only, where the User is the entity itself and not a contractor offering them services, part 7 of the 
+	and for direct usage only, where the User is the entity itself and not a contractor offering them services, part 7 of the
 	Agreement shall not appply and user is excempt.	If, however, at any time, the system integrating the software is contractually
 	sub-delegated at cost to a third party to operate,  the user agrees their exception from the provisions in part 7 of the agreement shall terminate.
-	
+
 9.	Regardless of the location or juresdiction of the User's nation, the User agrees to honor the Agreement, and to be subject to it as if it were agreed to
 	for purposes, activities, uses, and contracts within and subject to, construed and enforced in accordance with the law of the state of Colorado.
 	The parties irrevocably consent to the exclusive jurisdiction of the state or federal courts located in Denver for all disputes concerning this agreement.
-	
+
 10.	User acknowledges that the Software is supplied "as is," without any absolute guarantee of support services from Author.
 	Author makes no representations or warranties, express or implied, including, without limitation,
 	any representations or warranties of the merchantability or fitness for any particular purpose,
 	or that the application of the software, will not infringe on any patents or other proprietary rights of others.
-	
+
 11.	Author shall not be held liable for direct, indirect, incidental or consequential damages arising from any claim by User
 	or any third party with respect to uses allowed under the Agreement, or from any use of the Software.
-	
+
 12.	User agrees to fully indemnify and hold harmless Author from and against any and all claims, demands, suits, losses, damages,
 	costs and expenses arising out of the User's use of the Software, including, without limitation, arising out of the User's modification of the Software.
-	
-13.	The user agrees that the definition of `modified work` shall include any part of the Software implemented as part of any other program,
-	shall include any works made by reverse engineering, emulating, examining, or otherwise whiteroom-implementing the Software, 
-	including but not limited to the use of Artificial Intelligence, in addition to any modified work based upon the Software.
 
+13.	The user agrees that the definition of `modified work` shall include any part of the Software implemented as part of any other program,
+	shall include any works made by reverse engineering, emulating, examining, or otherwise whiteroom-implementing the Software,
+	including but not limited to the use of Artificial Intelligence, in addition to any modified work based upon the Software.
 14.	For the purposes of `modified work` as agreed to in part 10 of the Agreement, User agrees to the following additional conditions:
-	User may Use, modify the Software and make `modified work` with regards to the Software and and distribute it to to third parties provided that: 
+	User may Use, modify the Software and make `modified work` with regards to the Software and and distribute it to to third parties provided that:
 	(a) If posted separately, it clearly acknowledges that it contains material copyrighted by the Author,
-	(b) User agrees to notify the Author of the distribution, 
+	(b) User agrees to notify the Author of the distribution,
 	(c) User clearly notifies secondary users that such modified work is not the original Software by including the License Agreement,
 	(d) User agrees that any `modified work` must either be donationware, freeware, open source, or not provided at cost.
 	(e) User agrees that with regards to `DSP` devices which incorporate a `modified work` based upon the Use of the Software,
 	the Author must be paid 10% of the retail cost of every unit ever sold by User.
 	(e) User agrees to provide Author with a non-irrevocable non-exclusive interest in ownership of the `modified work`,  which is limited to the following condition:
-	(f) User agrees that if they are paid for a contract or work that involves the Use of the Software or a `modified work` derived from the Software, 
+	(f) User agrees that if they are paid for a contract or work that involves the Use of the Software or a `modified work` derived from the Software,
 	or any other work in a chain of Uses of said works which ultimately are derived from any `modified work` which was at one time produced by the Use of the Software,
 	the User will provide the Author with 1% of the value of the contract.
-	 
-15. 	On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive,
+
+15. On January 1st, 2100, The terms of this License shall be considered null and void and the Software, provided the author remains alive,
 	which is unlikely, shall be considered dually licensed under the MIT license and the GPL-2.0, in perpetuum.
-16.	In the event that the Author both has a suitable lover and helpmate to their own preference, and has also exceeded a 
+16.	In the event that the Author both has a suitable lover and helpmate to their own preference, and has also exceeded a
 	lifetime collective income after taxes of 2,799,360 USD, Author agrees to relicense the code as dually licensed under the MIT license and the GPL-2.0, in perpetuum.
 17.	The author does not give a shit about what you think of the license agreement and User agrees not to complain about it.
 */
 
 //please note: this project is still a work in process and is not finished.
 //please do not attempt to use this code for any purpose until this line is removed.
-//note: now is fast, but requires 512kb worth of lookup tables. Is this a suitable behavior? 
+//note that this code does not execute in realtime. it does not make use of any acceleration libraries, and the call to SIN and COS are quite slow.
+//note that 2 seconds of data is computed in 6 seconds of real time. how is anything ever built in this language?
+
 
 #include <iostream>
 #include <vector>
@@ -464,7 +461,7 @@ static void rfft(std::array<float, 257>& x, std::array<std::complex<float>, 257>
 		X[128 - k] = (X[k]);
 	}  
 	X[128] = -std::conj(X[128]);
-	X[256] = std::complex<float> ((2.0 * X[255].real()) - X[254].real()),((2.0 * X[255].imag()) - X[254].imag()); //is this correct numpy behavior?
+	X[256] = std::complex<float> (((2.0 * X[255].real()) - X[254].real()),((2.0 * X[255].imag()) - X[254].imag())); //is this correct numpy behavior?
 }
 
 static void irfft_fftshift_1d(std::array<std::complex<float>, 257>& X, std::array<float, 257>& temp) {
