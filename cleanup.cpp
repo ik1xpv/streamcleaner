@@ -29,7 +29,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 /*
 * Cleanup. CPP version 0.01
 *  execute time with intelDcc compiler, all things optimized.. 153ms of time to compute 2800ms of audio. This is 18x speedup
-*  the validity of the results have not been measured.
+*  the validity of the results- the results are incorrect. the function for the test outputs zeros.
+*  it should be outputting 3925.476302948533, all things equal to the python.
+* the use of doubles in the python just makes the code run a little faster for some reason, the precision doesnt change anything.
 *
 *
 */
