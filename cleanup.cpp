@@ -3,7 +3,7 @@ Copyright 2023 Joshuah Rainstar
 Permission is hereby granted, free of charge, to any person obtaining a copy of this softwareand associated documentation files(the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 and /or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions :
-The above copyright noticeand this permission notice shall be included in all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
@@ -22,7 +22,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA.
 */
-
 //please note: this project is still a work in process and is not finished.
 //please do not attempt to use this code for any purpose until this line is removed.
 
@@ -30,7 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 /*
 * Cleanup. CPP version 0.01
 *  execute time with intelDcc compiler, all things optimized.. 153ms of time to compute 2800ms of audio. This is 18x speedup
-*  not sure how much of the code runs though, lol!
+*  the validity of the results have not been measured.
 *
 *
 */
@@ -42,12 +41,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 #include <algorithm>
 #include <cmath>
 #include <array>
-
-
-
-
-
-
 
 
 
@@ -67,6 +60,8 @@ def man(data: numpy.ndstd::array):
   a = numpy.sqrt(numpy.mean(x))
 return a
 */
+
+
 //"Median Absolute deviation root mean square with Nonzero median thresholding"
 float MAN(std::array<float, 257>& data, int& NBINS) {
 	std::array<float, 257> arr;
@@ -172,39 +167,6 @@ void same_vector_convolve(std::vector<float>& input1, const std::vector<float>&i
 
 
 
-void sawtooth_filter(std::array<std::array<float, 257>, 192>& data, std::array<std::array<float, 222>, 257>& scratch, std::array<std::array<float, 257>, 192>& output, int& NBINS) {
-	// Initialize scratch to all zeros
-
-	scratch.fill({ 0.0 });
-
-	static const std::vector<float> filter = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
-
-	// Transpose data into scratch
-	for (int i = 0; i < 192; i++) {
-		for (int j = 0; j < NBINS; j++) {
-			scratch[j][i + 15] = data[i][j];
-		}
-	}
-
-	// Create dynamic buffer to hold flattened scratch std::array
-	//this is the only place we use a vector anywhere in the entire program, and that's because we cannot know exactly how many NBINS the user wants to process.
-	std::vector<float> buffer(NBINS * 207, 0.0);
-
-	// Flatten scratch std::array into buffer
-	for (auto i = 0; i < NBINS; i++) {
-		std::copy(scratch[i].begin() + 15, scratch[i].begin() + 222, buffer.begin() + (i * 207));
-	}
-
-	// Call same_mode_convolve
-	same_vector_convolve(buffer, filter);
-
-	// Transpose buffer into output
-	for (int i = 0; i < NBINS; i++) {
-		for (int j = 0; j < 192; j++) {
-			output[j][i] = buffer[i * 207 + j + 15];
-		}
-	}
-}
 
 
 
@@ -232,6 +194,8 @@ private:
 	static constexpr std::array<float, 512> synthesis_window = { 0.00000000e+00,2.52493737e-05,1.00993617e-04,2.27221124e-04,4.03912573e-04,6.31040943e-04,9.08571512e-04,1.23646188e-03,1.61466197e-03,2.04311406e-03,2.52175277e-03,3.05050510e-03,3.62929044e-03,4.25802059e-03,4.93659976e-03,5.66492464e-03,6.44288435e-03,7.27036053e-03,8.14722732e-03,9.07335139e-03,1.00485920e-02,1.10728009e-02,1.21458227e-02,1.32674943e-02,1.44376456e-02,1.56560990e-02,1.69226697e-02,1.82371657e-02,1.95993878e-02,2.10091294e-02,2.24661772e-02,2.39703105e-02,2.55213015e-02,2.71189155e-02,2.87629109e-02,3.04530390e-02,3.21890442e-02,3.39706641e-02,3.57976294e-02,3.76696640e-02,3.95864853e-02,4.15478036e-02,4.35533228e-02,4.56027403e-02,4.76957466e-02,4.98320260e-02,5.20112561e-02,5.42331081e-02,5.64972471e-02,5.88033315e-02,6.11510136e-02,6.35399396e-02,6.59697493e-02,6.84400765e-02,7.09505488e-02,7.35007880e-02,7.60904099e-02,7.87190242e-02,8.13862349e-02,8.40916401e-02,8.68348324e-02,8.96153985e-02,9.24329196e-02,9.52869711e-02,9.81771232e-02,1.01102941e-01,1.04063982e-01,1.07059803e-01,1.10089950e-01,1.13153968e-01,1.16251394e-01,1.19381763e-01,1.22544602e-01,1.25739435e-01,1.28965780e-01,1.32223151e-01,1.35511057e-01,1.38829001e-01,1.42176485e-01,1.45553002e-01,1.48958043e-01,1.52391095e-01,1.55851640e-01,1.59339154e-01,1.62853113e-01,1.66392985e-01,1.69958235e-01,1.73548325e-01,1.77162713e-01,1.80800852e-01,1.84462192e-01,1.88146180e-01,1.91852259e-01,1.95579867e-01,1.99328441e-01,2.03097413e-01,2.06886212e-01,2.10694266e-01,2.14520996e-01,2.18365823e-01,2.22228164e-01,2.26107433e-01,2.30003042e-01,2.33914400e-01,2.37840913e-01,2.41781985e-01,2.45737016e-01,2.49705407e-01,2.53686555e-01,2.57679853e-01,2.61684694e-01,2.65700470e-01,2.69726568e-01,2.73762377e-01,2.77807281e-01,2.81860664e-01,2.85921908e-01,2.89990394e-01,2.94065503e-01,2.98146611e-01,3.02233096e-01,3.06324335e-01,3.10419702e-01,3.14518572e-01,3.18620319e-01,3.22724316e-01,3.26829934e-01,3.30936547e-01,3.35043526e-01,3.39150246e-01,3.43256086e-01,3.47360427e-01,3.51462648e-01,3.55562129e-01,3.59658251e-01,3.63750398e-01,3.67837950e-01,3.71920292e-01,3.75996808e-01,3.80066883e-01,3.84129905e-01,3.88185260e-01,3.92232339e-01,3.96270531e-01,4.00299230e-01,4.04317828e-01,4.08325721e-01,4.12322306e-01,4.16306982e-01,4.20279150e-01,4.24238213e-01,4.28183575e-01,4.32114645e-01,4.36030831e-01,4.39931546e-01,4.43816203e-01,4.47684220e-01,4.51535015e-01,4.55368011e-01,4.59182632e-01,4.62978306e-01,4.66754464e-01,4.70510539e-01,4.74245967e-01,4.77960189e-01,4.81652647e-01,4.85322788e-01,4.88970060e-01,4.92593918e-01,4.96193817e-01,4.99769218e-01,5.03319584e-01,5.06844384e-01,5.10343088e-01,5.13815172e-01,5.17260116e-01,5.20677401e-01,5.24066516e-01,5.27426952e-01,5.30758205e-01,5.34059774e-01,5.37331165e-01,5.40571886e-01,5.43781450e-01,5.46959376e-01,5.50105185e-01,5.53218405e-01,5.56298569e-01,5.59345212e-01,5.62357878e-01,5.65336111e-01,5.68279465e-01,5.71187495e-01,5.74059764e-01,5.76895840e-01,5.79695293e-01,5.82457703e-01,5.85182652e-01,5.87869728e-01,5.90518527e-01,5.93128647e-01,5.95699693e-01,5.98231278e-01,6.00723016e-01,6.03174532e-01,6.05585452e-01,6.07955411e-01,6.10284050e-01,6.12571014e-01,6.14815956e-01,6.17018534e-01,6.19178413e-01,6.21295262e-01,6.23368760e-01,6.25398589e-01,6.27384439e-01,6.29326006e-01,6.31222993e-01,6.33075109e-01,6.34882068e-01,6.36643595e-01,6.38359416e-01,6.40029269e-01,6.41652895e-01,6.43230043e-01,6.44760469e-01,6.46243937e-01,6.47680215e-01,6.49069080e-01,6.50410317e-01,6.51703715e-01,6.52949072e-01,6.54146194e-01,6.55294893e-01,6.56394987e-01,6.57446303e-01,6.58448674e-01,6.59401943e-01,6.60305956e-01,6.61160570e-01,6.61965647e-01,6.62721059e-01,6.63426683e-01,6.64082404e-01,6.64688115e-01,6.65243717e-01,6.65749117e-01,6.66204231e-01,6.66608983e-01,6.66963302e-01,6.67267128e-01,6.67520406e-01,6.67723090e-01,6.67875141e-01,6.67976529e-01,6.68027230e-01,6.68027230e-01,6.67976529e-01,6.67875141e-01,6.67723090e-01,6.67520406e-01,6.67267128e-01,6.66963302e-01,6.66608983e-01,6.66204231e-01,6.65749117e-01,6.65243717e-01,6.64688115e-01,6.64082404e-01,6.63426683e-01,6.62721059e-01,6.61965647e-01,6.61160570e-01,6.60305956e-01,6.59401943e-01,6.58448674e-01,6.57446303e-01,6.56394987e-01,6.55294893e-01,6.54146194e-01,6.52949072e-01,6.51703715e-01,6.50410317e-01,6.49069080e-01,6.47680215e-01,6.46243937e-01,6.44760469e-01,6.43230043e-01,6.41652895e-01,6.40029269e-01,6.38359416e-01,6.36643595e-01,6.34882068e-01,6.33075109e-01,6.31222993e-01,6.29326006e-01,6.27384439e-01,6.25398589e-01,6.23368760e-01,6.21295262e-01,6.19178413e-01,6.17018534e-01,6.14815956e-01,6.12571014e-01,6.10284050e-01,6.07955411e-01,6.05585452e-01,6.03174532e-01,6.00723016e-01,5.98231278e-01,5.95699693e-01,5.93128647e-01,5.90518527e-01,5.87869728e-01,5.85182652e-01,5.82457703e-01,5.79695293e-01,5.76895840e-01,5.74059764e-01,5.71187495e-01,5.68279465e-01,5.65336111e-01,5.62357878e-01,5.59345212e-01,5.56298569e-01,5.53218405e-01,5.50105185e-01,5.46959376e-01,5.43781450e-01,5.40571886e-01,5.37331165e-01,5.34059774e-01,5.30758205e-01,5.27426952e-01,5.24066516e-01,5.20677401e-01,5.17260116e-01,5.13815172e-01,5.10343088e-01,5.06844384e-01,5.03319584e-01,4.99769218e-01,4.96193817e-01,4.92593918e-01,4.88970060e-01,4.85322788e-01,4.81652647e-01,4.77960189e-01,4.74245967e-01,4.70510539e-01,4.66754464e-01,4.62978306e-01,4.59182632e-01,4.55368011e-01,4.51535015e-01,4.47684220e-01,4.43816203e-01,4.39931546e-01,4.36030831e-01,4.32114645e-01,4.28183575e-01,4.24238213e-01,4.20279150e-01,4.16306982e-01,4.12322306e-01,4.08325721e-01,4.04317828e-01,4.00299230e-01,3.96270531e-01,3.92232339e-01,3.88185260e-01,3.84129905e-01,3.80066883e-01,3.75996808e-01,3.71920292e-01,3.67837950e-01,3.63750398e-01,3.59658251e-01,3.55562129e-01,3.51462648e-01,3.47360427e-01,3.43256086e-01,3.39150246e-01,3.35043526e-01,3.30936547e-01,3.26829934e-01,3.22724316e-01,3.18620319e-01,3.14518572e-01,3.10419702e-01,3.06324335e-01,3.02233096e-01,2.98146611e-01,2.94065503e-01,2.89990394e-01,2.85921908e-01,2.81860664e-01,2.77807281e-01,2.73762377e-01,2.69726568e-01,2.65700470e-01,2.61684694e-01,2.57679853e-01,2.53686555e-01,2.49705407e-01,2.45737016e-01,2.41781985e-01,2.37840913e-01,2.33914400e-01,2.30003042e-01,2.26107433e-01,2.22228164e-01,2.18365823e-01,2.14520996e-01,2.10694266e-01,2.06886212e-01,2.03097413e-01,1.99328441e-01,1.95579867e-01,1.91852259e-01,1.88146180e-01,1.84462192e-01,1.80800852e-01,1.77162713e-01,1.73548325e-01,1.69958235e-01,1.66392985e-01,1.62853113e-01,1.59339154e-01,1.55851640e-01,1.52391095e-01,1.48958043e-01,1.45553002e-01,1.42176485e-01,1.38829001e-01,1.35511057e-01,1.32223151e-01,1.28965780e-01,1.25739435e-01,1.22544602e-01,1.19381763e-01,1.16251394e-01,1.13153968e-01,1.10089950e-01,1.07059803e-01,1.04063982e-01,1.01102941e-01,9.81771232e-02,9.52869711e-02,9.24329196e-02,8.96153985e-02,8.68348324e-02,8.40916401e-02,8.13862349e-02,7.87190242e-02,7.60904099e-02,7.35007880e-02,7.09505488e-02,6.84400765e-02,6.59697493e-02,6.35399396e-02,6.11510136e-02,5.88033315e-02,5.64972471e-02,5.42331081e-02,5.20112561e-02,4.98320260e-02,4.76957466e-02,4.56027403e-02,4.35533228e-02,4.15478036e-02,3.95864853e-02,3.76696640e-02,3.57976294e-02,3.39706641e-02,3.21890442e-02,3.04530390e-02,2.87629109e-02,2.71189155e-02,2.55213015e-02,2.39703105e-02,2.24661772e-02,2.10091294e-02,1.95993878e-02,1.82371657e-02,1.69226697e-02,1.56560990e-02,1.44376456e-02,1.32674943e-02,1.21458227e-02,1.10728009e-02,1.00485920e-02,9.07335139e-03,8.14722732e-03,7.27036053e-03,6.44288435e-03,5.66492464e-03,4.93659976e-03,4.25802059e-03,3.62929044e-03,3.05050510e-03,2.52175277e-03,2.04311406e-03,1.61466197e-03,1.23646188e-03,9.08571512e-04,6.31040943e-04,4.03912573e-04,2.27221124e-04,1.00993617e-04,2.52493737e-05,0.00000000e+00 };
 	static constexpr std::array<float, 37> logit_37 = { 0.0, 0.08441118, 0.16882236, 0.2197072, 0.25693163, 0.28672628, 0.31187091, 0.33385255, 0.35356306, 0.37158192, 0.38830914, 0.40403462, 0.41897721, 0.43330834, 0.44716693, 0.46066936, 0.47391649, 0.4869987, 0.5, 0.5130013, 0.52608351, 0.53933064, 0.55283307, 0.56669166, 0.58102279, 0.59596538, 0.61169086, 0.62841808, 0.64643694, 0.66614745, 0.68812909, 0.71327372, 0.74306837, 0.7802928, 0.83117764, 0.91558882, 1.0 };
 	static constexpr std::array<float, 3> entropy_filter = { 1.0,1.0,1.0 };
+	static constexpr std::array<double, 15> sawtooth_filter = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
+
 	//working memory
 	std::array<float, 24576> audio = {};
 	std::array<float, 25087> audio_padded = {};
@@ -240,6 +204,7 @@ private:
 	std::array<int, 192> entropy_thresholded = {};
 	std::array<float, 204> entropy_padded = {}; //192 + 12
 	std::array<float, 257> logit_distribution = {};
+	std::array<float, 235> timewise_convolve_13 = {};
 
 
 	std::array<float, 8192> output = { 0 };
@@ -253,7 +218,6 @@ private:
 
 	std::array<float, 257> temp_257 = {};
 	std::array<float, 512> temp_512 = {};
-	std::array<std::array<float, 222>, 257> scratch = {};
 	std::array<std::array<std::complex<float>, 257>, 192> stft_complex = {};
 	std::array<std::array<std::complex<float>, 257>, 64> stft_output = {};
 	std::array<std::array<std::complex<float>, 257>, 64> stft_zeros = {}; // for use in the scenario two where we're processing the residual buffer but without the audio
@@ -618,12 +582,31 @@ public:
 				truecount = 0;//clear for next run
 				remove_outliers(entropy_thresholded, 0, 6, 1);
 				remove_outliers(entropy_thresholded, 1, 2, 0);
-				threshold(stft_real, NBINS, t);
+				threshold(stft_real, NBINS_last, t);
 				find_max(stft_real, initial);
-				sawtooth_filter(stft_real, scratch, smoothed, NBINS);
+
+
+				for (int i = 0; i < NBINS_last; i++) {
+					for (int j = 0; j < 192; j++) {
+						timewise_convolve_13[j + 15] = stft_real[i][j];
+
+					}
+					for (int k = 0; k < 192+15; k++) {
+						timewise_convolve_13[k] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, timewise_convolve_13.begin(), 0.0) / 7.0;
+					}
+					for (int j = 0; j < 192; j++) {
+						smoothed[i][j] = timewise_convolve_13[j + 15];
+					}
+					timewise_convolve_13.fill({ 0 });
+				}
+
+
+				// Transpose data into scratch
+
+
 				fast_peaks(smoothed, previous);
 
-				for (int i = 0; i < NBINS; i++) {
+				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 192; j++) {
 						if (previous[i][j] == 0) {
 							stft_real[i][j] = 0.0;
@@ -635,7 +618,22 @@ public:
 				multiplier = multiplier / initial;
 				if (multiplier > 1) { multiplier = 1; }
 
-				sawtooth_filter(stft_real, scratch, smoothed, NBINS);
+				for (int i = 0; i < NBINS_last; i++) {
+					for (int j = 0; j < 192; j++) {
+						timewise_convolve_13[j + 15] = stft_real[i][j];
+
+					}
+					for (int k = 0; k < 192 + 15; k++) {
+						timewise_convolve_13[i] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, timewise_convolve_13.begin(), 0.0) / 7.0;
+					}
+					for (int j = 0; j < 192; j++) {
+						smoothed[i][j] = timewise_convolve_13[j + 15];
+					}
+					timewise_convolve_13.fill({ 0 });
+				}
+
+
+
 
 				fast_peaks(smoothed, smoothed);
 
@@ -651,8 +649,69 @@ public:
 
 					}
 				}
-				sawtooth_filter(previous, scratch, previous, NBINS);
-				// Compute hann
+				for (int i = 0; i < NBINS_last; i++) {
+					for (int j = 0; j < 192; j++) {
+						timewise_convolve_13[j + 15] = previous[i][j];
+
+					}
+					for (int k = 0; k < 192 + 15; k++) {
+						timewise_convolve_13[i] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, timewise_convolve_13.begin(), 0.0) / 7.0;
+					}
+					for (int j = 0; j < 192; j++) {
+						previous[i][j] = timewise_convolve_13[j + 15];
+					}
+					timewise_convolve_13.fill({ 0 });
+				}
+
+				//todo: implement the convolve_2d_ padded function here on the contents of previous.
+				/* 
+				*   mask = convolve_custom_filter_2d(mask,13,3,3)
+
+					@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64))
+					def float_zero_pad_2d(array, E,N):
+						X = E * 2
+						Y = N * 2
+						padded = numpy.zeros(((array.shape[0]+X,array.shape[1]+Y)), dtype=numpy.float64)
+						# Copy old array into correct space
+						padded[E:-E,N:-N] = array[:]
+
+						return padded
+				
+				
+				
+				@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64,numba.int64))
+				def convolve_custom_filter_2d(data: numpy.ndarray, N : int, M : int, O : int) :
+					E = N * 2
+					F = M * 2
+					padded = float_zero_pad_2d(data, F, E)
+					normal = padded.copy()
+					normal_t = padded.T.copy()
+					b = numpy.ravel(normal)
+					c = numpy.ravel(normal_t)
+
+					for all in range(O) :
+						normal = padded.copy()
+						normal_t = padded.T.copy()
+						b = numpy.ravel(normal)
+						c = numpy.ravel(normal_t)
+						b[:] = (same_convolution_float_1d(b[:], numpy.ones(N, dtype = numpy.float64)) / N)[:]//note: this is just same convolution, but a numba compatible custom function.
+						c[:] = (same_convolution_float_1d(c[:], numpy.ones(M, dtype = numpy.float64)) / M)[:]
+						padded = (normal + normal_t.T.copy()) / 2
+						return padded[F:-F, E : -E]
+				*/ 
+				//instructions:
+				// you will need two additional 2d arrays the same size.
+				// remember our second dimension is time.
+				// fill the centermost elements of both with `previous`.
+				// time is convolved with an array of three, frequency with an array of 13.
+				// so the arrays each need to be 257+13+13+same padding, by 192+3+3+ same padding.
+				// 
+				// convolve each row with 13 in one array, then each column by 3 in the other.
+				// add the results together and divide by two.
+				// repeat three times.
+				// return the centermost elements into `previous`.
+
+
 
 				stft(audio_padded, shifted_hann_window, stft_complex);
 
