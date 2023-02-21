@@ -43,20 +43,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 #include <array>
 
 
+#ifdef MYDLL_EXPORTS
+#define MYDLL_API __declspec(dllexport)
+#else
+#define MYDLL_API __declspec(dllimport)
+#endif
+
+
 # define M_PI           3.14159265358979323846  /* pi */
 
-//Documentation
-//Instantiate with Filter filter;
-// use with filter.process(input).
-// Function accepts and returns 8192 values of float.
-// Function is not warranted to work at anything other than 48000 sample rate.
-// Class inserts a 170ms latency(fixed, not reducible).
-// filter.const_1 exposes a constant to allow you to determine what is noise and what should be allowed as signal.
-// Note that this does not change the thresholding approach at all, which needs to be changed but thats outside the scope of my intentions.
-// filter.NBINS_1 exposes the width of the filter. Set to 1 less than the width of your bandpass filter or there abouts.
-// Recommended default is 37, for 3646hz of effective usable bandwidth. It's ok to use a wider bandpass filter, also.
-//
-class  Filter
+
+class MYDLL_API MyDLLClass
 {
 	private:
 	//Filter Class Commentary
@@ -96,6 +93,8 @@ class  Filter
 
 	float t=0, initial=0, multiplier=0, MAXIMUM= 0.6122169028112414, constant=0, CONST = 0.057,test=0, thresh1 = 0.0;
 	int flag=0, count=0, NBINS_last=0, truecount = 0;
+	float CONST_1 = 0.057;
+	int NBINS_1 = 37;
 
 
 	std::array<float, 257> temp_257 = {};
@@ -457,12 +456,20 @@ class  Filter
 
 
 public:
-	constexpr Filter() : sin_table(), cos_table(){
+
+	MyDLLClass() : sin_table(), cos_table(){
 		init_tables();
 		std::copy(std::begin(logit_37), std::end(logit_37), std::begin(logit_distribution));
 	}
-	float CONST_1 = 0.057;
-	int NBINS_1 = 37;
+
+
+	void setConstant(float val) {
+		CONST_1 = val;
+	}
+
+	void set_NBINS(int val) {
+		NBINS_1 = val;
+	}
 
 		//TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
 
@@ -767,7 +774,6 @@ public:
 
 
 
-
 ////////////code below here is just for testing purposes
 void generate_sine_wave(std::array<float, 8192>& data, float freq, float phase, float amplitude) {
 	const float sample_rate = 48000;
@@ -799,7 +805,7 @@ void generate_complex_wave(std::array<float, 8192>& data) {
 #include <ctime>
 
 int main() {
-	Filter my_filter;
+	MyDLLClass my_filter;
 	std::array<float, 8192> demo = { 0 };
 	generate_complex_wave(demo);
 	std::array<float, 8192> output = { 0 };
@@ -817,8 +823,9 @@ int main() {
 
 	end_time = clock(); // get end time
 	float duration = (float)(end_time - start_time) / CLOCKS_PER_SEC * 1000.0; // calculate duration in milliseconds
-	std::cout << "Total value " << sum  << std::endl;
+	std::cout << "Total value " << sum  << std::endl; //note the value should be 3925.476302948533 if it equals the python's behavior.
 	std::cout << "Total execution time: " << duration << " milliseconds" << std::endl;
+	system("pause");
 
 
 	return 0;
