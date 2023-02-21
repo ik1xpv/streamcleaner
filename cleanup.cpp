@@ -28,12 +28,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 /*
-* Cleanup. CPP version 0.02 2/21/23
+* Cleanup. CPP version 0.03 2/21/23
 *  bugs to fix and behavior to refine:
-* tables generation at class instantiation - want it to generate and be part of binary - done
-* validate, if necessary correct rfft behavior
-* padding offsets for convolution - could be smaller but give same behavior
-* 	specifically, for the 2d convolve, we could consider only part of the array, based on NBINS
+*  go over rfft, irfft behavior with fine toothed comb.
+*  stft code seems right. masking, padding, etc doesnt necessarily seem right.
+*  most functions are now correct- entropy, fast_peaks, etc is all correct now.
+*  padding offsets for convolution - could be smaller but give same behavior?
+* specifically, for the 2d convolve, we could consider only part of the array, based on NBINS- a little performance boost
 * idomatic c++ to replace some of my craptacular code
 *
 *
@@ -181,7 +182,7 @@ private:
 		int count = 0;
 		for (int j = 0; j < NBINS; j++) {
 			for (int i = 0; i < 192; i++) {
-				float val = data[i][j];
+				float val = data[j][i];
 				if (val != 0.0) {
 					median += abs(val);
 					count++;
@@ -197,9 +198,9 @@ private:
 		// Compute the threshold using the formula from the original implementation
 		float sum = 0.0;
 		int n = 0;
-		for (int j = 0; j < NBINS; j++) {
+		for (int j = 0; j < NBINS_last; j++) {
 			for (int i = 0; i < 192; i++) {
-				float val = data[i][j];
+				float val = data[j][i];
 				if (!isnan(val) && isfinite(val)) {
 					float diff = abs(val - median);
 					sum += diff * diff;
@@ -216,10 +217,10 @@ private:
 
 	inline void find_max(const std::array<std::array<float, 192>, 257>& data, float& maximum) {
 		maximum = 0;
-		for (const auto& row : data) {
-			for (int j = 0; j < NBINS_last; j++) {
-				if (row[j] > maximum) {
-					maximum = row[j];
+		for (int j = 0; j < NBINS_last; j++) {
+			for (int i = 0; i < 192; i++) {
+				if (data[j][i] > maximum) {
+					maximum = data[j][i];
 				}
 			}
 		}
@@ -272,11 +273,12 @@ private:
 
 
 	inline void fast_entropy(std::array<std::array<float, 192>, 257>& data) {
-
+		temp_257.fill({ 0 });
 		for (int i = 0; i < 192; i++) {
-
+			for (int j = 0; j < NBINS_last; j++) {
+				temp_257[j] = data[j][i];
+			}
 			// Create a subset of the first NBINS elements of d and sort it
-			copy(data[i].begin(), data[i].begin() + NBINS_last, temp_257.begin());
 			sort(temp_257.begin(), temp_257.begin() + NBINS_last);
 
 			float dx = temp_257[NBINS_last - 1] - temp_257[0];
@@ -301,7 +303,7 @@ private:
 			if (entropy_thresholded[each] == 0) {
 				continue; //skip the calculations for this row, it's masked already
 			}
-			for (int j = 0; j < 257; j++) {
+			for (int j = 0; j < NBINS_last; j++) {
 				temp_257[j] = stft_[j][each];
 			}
 			constant = MAN(temp_257, NBINS_last);
@@ -342,7 +344,7 @@ private:
 
 		// Compute the FFT of the negative frequencies by conjugating X[N/2 - k]
 		for (int k = 1; k < 128; k++) {
-			X[257 - k] = std::conj(X[k]);
+			X[128 - k] = std::conj(X[k]);
 		}
 		X[128] = -std::conj(X[128]);
 		X[256] = std::complex<float>(((2.0 * X[255].real()) - X[254].real()), ((2.0 * X[255].imag()) - X[254].imag())); //is this correct numpy behavior?
@@ -807,7 +809,7 @@ int main() {
 
 	end_time = clock(); // get end time
 	float duration = (float)(end_time - start_time) / CLOCKS_PER_SEC * 1000.0; // calculate duration in milliseconds
-	std::cout << "Total value " << sum << std::endl; //this should always equal 3925.476302948533
+	std::cout << "Total value " << sum << std::endl;//this should always equal 3925.476302948533
 	std::cout << "Total execution time: " << duration << " milliseconds" << std::endl;
 	system("pause");
 
