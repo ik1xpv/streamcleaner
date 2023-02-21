@@ -27,9 +27,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 /*
-* Cleanup. CPP version 0.02
-*  execute time with intelDcc compiler, all things optimized.. 163ms of time to compute 2800ms of audio. This is 18x speedup
-*  all code has been inlined or implemented, now for some in depth testing
+* Cleanup. CPP version 0.02 2/21/23
+*  bugs to fix and behavior to refine:
+* tables generation at class instantiation - want it to generate and be part of binary
+* rfft behavior  - it doesnt fucking work
+* padding offsets for convolution - could be smaller but give same behavior
+* 	specifically, for the 2d convolve, we could consider only part of the array, based on NBINS
+* idomatic c++ to replace some of my craptacular code
 *
 *
 */
@@ -43,19 +47,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 #include <array>
 
 
-#ifdef MYDLL_EXPORTS
-#define MYDLL_API __declspec(dllexport)
-#else
-#define MYDLL_API __declspec(dllimport)
-#endif
-
 
 # define M_PI           3.14159265358979323846  /* pi */
 
 
-class MYDLL_API MyDLLClass
+class MYDLL_API
 {
-	private:
+private:
 	//Filter Class Commentary
 	//Stack size is ~200kb. We are not going to use the heap and play dangle the heap.
 	//Everything is either allocated within an(external) function, passed by value as input to our function, 
@@ -84,52 +82,41 @@ class MYDLL_API MyDLLClass
 	std::array<int, 192> entropy_thresholded = {};
 	std::array<float, 204> entropy_padded = {}; //192 + 12
 	std::array<float, 257> logit_distribution = {};
-	std::array<float, 235> timewise_convolve_13 = {};
+	std::array<float, 258> timewise_convolve_15 = {};
 
 
 	std::array<float, 8192> output = { 0 };
 	std::array<float, 8192> empty = { 0 };//just a bunch of zeros
 
 
-	float t=0, initial=0, multiplier=0, MAXIMUM= 0.6122169028112414, constant=0, CONST = 0.057,test=0, thresh1 = 0.0;
-	int flag=0, count=0, NBINS_last=0, truecount = 0;
+	float t = 0, initial = 0, multiplier = 0, MAXIMUM = 0.6122169028112414, constant = 0, CONST = 0.057, test = 0, thresh1 = 0.0;
+	int flag = 0, count = 0, NBINS_last = 0, truecount = 0;
 	float CONST_1 = 0.057;
 	int NBINS_1 = 37;
 
-
-	std::array<float, 257> temp_257 = {};
+	std::array<std::complex<float>, 512> temp_complex_512 = {};
 	std::array<float, 512> temp_512 = {};
-	std::array<std::array<std::complex<float>, 257>, 192> stft_complex = {};
-	std::array<std::array<std::complex<float>, 257>, 64> stft_output = {};
-	std::array<std::array<std::complex<float>, 257>, 64> stft_zeros = {}; // for use in the scenario two where we're processing the residual buffer but without the audio
-	std::array<std::array<float, 257>, 192> stft_real = {};
-	std::array<std::array<float, 257>, 192> smoothed = {};
-	std::array<std::array<float, 257>, 192> previous = {};
-	std::array<std::array<float, 295>, 200> smooth_2d_1 = {};
-	std::array<std::array<float, 295>, 200> smooth_2d_2 = {};
+
+	std::array<std::complex<float>, 257> temp_complex = {};
+	std::array<float, 257> temp_257 = {};
+
+	std::array<std::array<std::complex<float>, 192>, 257> stft_complex = {};
+	std::array<std::array<std::complex<float>, 64>, 257> stft_output = {};
+	std::array<std::array<std::complex<float>, 64>, 257> stft_zeros = {}; // for use in the scenario two where we're processing the residual buffer but without the audio
+	std::array<std::array<float, 192>, 257> stft_real = {};
+	std::array<std::array<float, 192>, 257> smoothed = {};
+	std::array<std::array<float, 192>, 257> previous = {};
+	std::array<std::array<float, 200>, 295> smooth_2d_1 = {};
+	std::array<std::array<float, 200>, 295> smooth_2d_2 = {};
 	std::array<float, 13> filter_long = { 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0 };
-	std::array<float, 295> freqwise = {};
+	std::array<float, 295+27> freqwise = {};
 
 	// Define the lookup tables
 	std::array<float, 66049> sin_table = {}; //257 x 257
 	std::array<float, 66049> cos_table = {};
 	//fill the tables
 
-	inline constexpr void init_tables() {
-		float angle = 0.0;
-		for (int k = 0; k < 257; k++) {
-			for (int n = 0; n < 257; n++) {
-				angle = 2 * M_PI * k * n / 257.0;
-				sin_table[((1 + k) * (1 + n)) - 1] = angle;
-				cos_table[((1 + k) * (1 + n)) - 1] = angle;
-			}
-		}
-		for (int k = 0; k < 66049; k++) {
-			sin_table[k] = std::sin(sin_table[k]);
-			cos_table[k] = std::sin(cos_table[k]);
 
-		}
-	}
 
 	inline float MAN(std::array<float, 257>& data, int& NBINS) {
 		std::array<float, 257> arr;
@@ -171,7 +158,7 @@ class MYDLL_API MyDLLClass
 		return a;
 	}
 
-	inline void threshold(std::array<std::array<float, 257>, 192>& data, int& NBINS, float& threshold) {
+	inline void threshold(std::array<std::array<float, 192>, 257>& data, int& NBINS, float& threshold) {
 		// Compute the median of the absolute values of the non-zero elements
 		float median = 0.0;
 		int count = 0;
@@ -210,7 +197,7 @@ class MYDLL_API MyDLLClass
 		threshold = sqrt(sum / n) + median;
 	}
 
-	inline void find_max(const std::array<std::array<float, 257>, 192>& data, float& maximum) {
+	inline void find_max(const std::array<std::array<float, 192>, 257>& data, float& maximum) {
 		maximum = 0;
 		for (const auto& row : data) {
 			for (int j = 0; j < NBINS_last; j++) {
@@ -220,7 +207,7 @@ class MYDLL_API MyDLLClass
 			}
 		}
 	}
-	
+
 
 	inline float correlationCoefficient(const std::array<float, 257>& X, const std::array<float, 257>& Y) {
 		float sum_X = accumulate(X.begin(), X.begin() + NBINS_last, 0.0);
@@ -237,7 +224,7 @@ class MYDLL_API MyDLLClass
 	}
 
 	inline void generate_true_logistic() {
-		logit_distribution.fill(0.0);
+		logit_distribution.fill({ 0.0 });
 		if (NBINS_last < 4) {
 			return; //note: we don't generate logistics smaller than four points
 
@@ -267,7 +254,7 @@ class MYDLL_API MyDLLClass
 	}
 
 
-	inline void fast_entropy(std::array<std::array<float, 257>, 192>& data) {
+	inline void fast_entropy(std::array<std::array<float, 192>, 257>& data) {
 
 		for (int i = 0; i < 192; i++) {
 
@@ -290,12 +277,17 @@ class MYDLL_API MyDLLClass
 		}
 	}
 
-	inline void fast_peaks(std::array<std::array<float, 257>, 192>& stft_, std::array<std::array<float, 257>, 192>& mask) {
+
+	//validated as good, as optimal, as efficient, and as working
+	inline void fast_peaks(std::array<std::array<float, 192>, 257>& stft_, std::array<std::array<float, 192>, 257>& mask) {
 		for (int each = 0; each < 192; each++) {
 			if (entropy_thresholded[each] == 0) {
 				continue; //skip the calculations for this row, it's masked already
 			}
-			constant = MAN(stft_[each], NBINS_last);
+			for (int j = 0; j < 257; j++) {
+				temp_257[j] = stft_[j][each];
+			}
+			constant = MAN(temp_257, NBINS_last);
 			test = entropy_padded[each + 8] / MAXIMUM;
 			test = abs(test - 1);
 			thresh1 = (t * test);
@@ -303,14 +295,14 @@ class MYDLL_API MyDLLClass
 				constant = (thresh1 + constant) / 2; //catch errors
 			}
 			for (int i = 0; i < NBINS_last; i++) {
-				if (stft_[i][each] > CONST) {
-					mask[i][each] = 1;
+				if (stft_[each][i] > CONST) {
+					mask[each][i] = 1;
 				}
 			}
 		}
 	}
 
-	inline void rfft(std::array<float, 257>& x, std::array<std::complex<float>, 257>& X) {
+	void my_rfft(std::array<float, 257>& x, std::array<std::complex<float>, 257>& X) {
 
 		// Compute the FFT of the positive frequencies
 		for (int k = 0; k < 128; k++) {
@@ -333,7 +325,7 @@ class MYDLL_API MyDLLClass
 
 		// Compute the FFT of the negative frequencies by conjugating X[N/2 - k]
 		for (int k = 1; k < 128; k++) {
-			X[128 - k] = (X[k]);
+			X[257 - k] = std::conj(X[k]);
 		}
 		X[128] = -std::conj(X[128]);
 		X[256] = std::complex<float>(((2.0 * X[255].real()) - X[254].real()), ((2.0 * X[255].imag()) - X[254].imag())); //is this correct numpy behavior?
@@ -341,35 +333,44 @@ class MYDLL_API MyDLLClass
 
 
 
-	inline void stft(std::array<float, 25087>& xp, const std::array<float, 512>& window, std::array<std::array<std::complex<float>, 257>, 192>& out) {
+	void stft(std::array<float, 25087>& xp, const std::array<float, 512>& window, std::array<std::array<std::complex<float>, 192>, 257>& out) {
 
 		// Initialize Sx_temp to all zeros
-		temp_512.fill({ 0 });
+		int n_fft = 512;
+		int hop_len = 128;
 
-		for (int i = 0; i < 192; i++) {
-			int start0 = 128 * i;
-			int end0 = start0 + 256;
+		int seg_len = n_fft;
+		int n_overlap = n_fft - hop_len;
+		hop_len = seg_len - n_overlap;
+		int n_segs = (xp.size() - seg_len) / hop_len + 1;
+		int s20 = (int)std::ceil(seg_len / 2);
+		int s21;
+		if (seg_len % 2 == 1) {
+			s21 = s20 - 1;
+		}
+		else { s21 = s20; }
+		for (int i = 0; i < n_segs; i++) {
+			int start0 = hop_len * i;
+			int end0 = start0 + s21;
 			int start1 = end0;
-
-			for (int j = 0; j < 256; j++) {
+			for (int j = 0; j < s20; j++) {
 				temp_512[j] = xp[start1 + j];
 			}
-			for (int j = 256; j < 512; j++) {
-				temp_512[j] = xp[start0 + j - 256];
+			for (int j = s20; j < n_fft; j++) {
+				temp_512[j] = xp[start0 + j - s20];
 			}
-
-			// Apply windowing and copy in one step
 			for (int j = 0; j < 257; j++) {
 				temp_257[j] = temp_512[j] * window[j];
 			}
-
-			// Perform in-place rfft
-			rfft(temp_257, out[i]);
+			my_rfft(temp_257, temp_complex);
+			for (int e = 0; e < 257; e++) {
+				out[e][i] = temp_complex[e];
+			}
 		}
 	}
 
 
-	inline void istft(std::array<std::array<std::complex<float>, 257>, 64>& Sx) {
+	inline void istft(std::array<std::array<std::complex<float>, 64>, 257>& Sx) {
 
 
 		// Reuse temp, eliminate xbuf
@@ -383,7 +384,7 @@ class MYDLL_API MyDLLClass
 					//angle consists of 65536 possible floats generated with 2* M_Pi * k(0...256) * n(0...256) / 257, 0.0.. 1602.2367015226512
 					//and storing it in index [k*n], and then obtaining it using retrieve_sin_inv(int k*n) or retrieve_cos_inv(int,k*n)
 
-					real_part += Sx[i][k].real() * cos_table[((1 + k) * (1 + n)) - 1] - Sx[i][k].imag() * sin_table[((1 + k) * (1 + n)) - 1];
+					real_part += Sx[k][i].real() * cos_table[((1 + k) * (1 + n)) - 1] - Sx[k][i].imag() * sin_table[((1 + k) * (1 + n)) - 1];
 				}
 				temp_257[n] = real_part / 257.0;
 			}
@@ -409,6 +410,7 @@ class MYDLL_API MyDLLClass
 		}
 	}
 
+	//validated
 	inline int longestConsecutive(std::array<int, 192>& nums) {
 		int curr_streak = 0;
 		int prevstreak = 0;
@@ -455,11 +457,23 @@ class MYDLL_API MyDLLClass
 	}
 
 
+
 public:
 
-	MyDLLClass() : sin_table(), cos_table(){
-		init_tables();
-		std::copy(std::begin(logit_37), std::end(logit_37), std::begin(logit_distribution));
+	void init_tables() {
+		float angle = 0.0;
+		for (int k = 0; k < 257; k++) {
+			for (int n = 0; n < 257; n++) {
+				angle = 2 * M_PI * k * n / 257.0;
+				sin_table[((1 + k) * (1 + n)) - 1] = angle;
+				cos_table[((1 + k) * (1 + n)) - 1] = angle;
+			}
+		}
+		for (int k = 0; k < 66049; k++) {
+			sin_table[k] = std::sin(sin_table[k]);
+			cos_table[k] = std::sin(cos_table[k]);
+
+		}
 	}
 
 
@@ -471,16 +485,17 @@ public:
 		NBINS_1 = val;
 	}
 
-		//TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
+	//TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
 
 	std::array<float, 8192> process(std::array<float, 8192> input) {
+
 		if (CONST_1 > 1) { CONST_1 = 1.0; }//make sure sane inputs
 		if (CONST_1 < 0) { CONST_1 = 0.001; }
 		CONST = CONST_1; //if const-1 is changed this means it will only update once per cycle
 		if (NBINS_1 > 257) { NBINS_1 = 257; }//make sure sane inputs
 		if (NBINS_1 < 5) { NBINS_1 = 5; }//you cant use less than 5 bins!
 
-		if (NBINS_1 != NBINS_last){//same thing for nbins- only considered once per cycle
+		if (NBINS_1 != NBINS_last) {//same thing for nbins- only considered once per cycle
 			if (NBINS_1 == 37) {//let's fill the std::array
 				NBINS_last = NBINS_1;
 				std::copy(std::begin(logit_37), std::end(logit_37), std::begin(logit_distribution));
@@ -497,11 +512,12 @@ public:
 
 
 		//in this function we are only to allocate and do reference based manipulation of data- never copy or move. 
-		rotate(begin(audio), begin(audio) + 8192, end(audio)); // Shift the values in the std::array 8192 values to the left.
+		for (int i = 0; i < 8192*2; i++) {
+			audio[i] = audio[i + 8192];
+		}
 		//rapidly copy in the audio
 		std::copy(std::begin(input), std::end(input), std::end(audio) - 8192);
 
-		copy(begin(input), end(input), end(audio) - 8192); // Copy the contents of input into the last 8192 elements of audio.
 		for (int i = 256; i < 25087 - 255; i++) {
 			audio_padded[i] = audio[i - 256];
 		}
@@ -515,7 +531,7 @@ public:
 		// Copy the first 37 rows of stft_complex to stft_real
 		for (int i = 0; i < 257; i++) {
 			for (int j = 0; j < 192; j++) {
-				stft_real[j][i] = abs(stft_complex[j][i]);
+				stft_real[i][j] = abs(stft_complex[i][j]);
 			}
 		}
 		fast_entropy(stft_real);
@@ -525,14 +541,14 @@ public:
 				entropy_unmasked[i] = 0;
 			}
 		}
-		copy(begin(entropy_unmasked), end(entropy_unmasked), entropy_padded.begin() + 3); //copy into middle of padding
-		for (int i = 0; i < 204; i++) {
+		copy(begin(entropy_unmasked), end(entropy_unmasked), entropy_padded.begin() + 8); //copy into middle of padding
+		for (int i = 0; i < 192; i++) {
 			float sum = std::inner_product(entropy_padded.begin() + i, entropy_padded.begin() + i + 3, entropy_filter.begin(), 0.0);
-			entropy_padded[i] = sum/3;
+			entropy_padded[i] = sum / 3;
 		} //perform inline convolution
 
 
-		for (int i = 6; i < 198; i++) {
+		for (int i = 8; i < 200; i++) {
 			if (entropy_padded[i] < constant) {
 				entropy_thresholded[i - 8] = 0;
 			}
@@ -556,19 +572,19 @@ public:
 				threshold(stft_real, NBINS_last, t);
 				find_max(stft_real, initial);
 
-
+				timewise_convolve_15.fill({ 0 });
 				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 192; j++) {
-						timewise_convolve_13[j + 15] = stft_real[i][j];
+						timewise_convolve_15[j + 15] = stft_real[i][j];
 
 					}
 					for (int k = 0; k < 192 + 15; k++) {
-						timewise_convolve_13[k] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, sawtooth_filter.begin(), 0.0) / 7.0;
+						timewise_convolve_15[k] = std::inner_product(timewise_convolve_15.begin() + k, timewise_convolve_15.begin() + k + 15, sawtooth_filter.begin(), 0.0) / 7.0;
 					}
 					for (int j = 0; j < 192; j++) {
-						smoothed[i][j] = timewise_convolve_13[j + 15];
+						smoothed[i][j] = timewise_convolve_15[j + 15];
 					}
-					timewise_convolve_13.fill({ 0 });
+					timewise_convolve_15.fill({ 0 });
 				}
 
 
@@ -589,18 +605,19 @@ public:
 				multiplier = multiplier / initial;
 				if (multiplier > 1) { multiplier = 1; }
 
+
 				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 192; j++) {
-						timewise_convolve_13[j + 15] = stft_real[i][j];
+						timewise_convolve_15[j + 15] = stft_real[i][j];
 
 					}
 					for (int k = 0; k < 192 + 15; k++) {
-						timewise_convolve_13[i] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 13, sawtooth_filter.begin(), 0.0) / 7.0;
+						timewise_convolve_15[k] = std::inner_product(timewise_convolve_15.begin() + k, timewise_convolve_15.begin() + k + 15, sawtooth_filter.begin(), 0.0) / 7.0;
 					}
 					for (int j = 0; j < 192; j++) {
-						smoothed[i][j] = timewise_convolve_13[j + 15];
+						smoothed[i][j] = timewise_convolve_15[j + 15];
 					}
-					timewise_convolve_13.fill({ 0 });
+					timewise_convolve_15.fill({ 0 });
 				}
 
 
@@ -616,71 +633,25 @@ public:
 						}
 					}
 				}
+
+
 				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 192; j++) {
-						timewise_convolve_13[j + 15] = previous[i][j];
+						timewise_convolve_15[j + 15] = stft_real[i][j];
 
 					}
 					for (int k = 0; k < 192 + 15; k++) {
-						timewise_convolve_13[i] = std::inner_product(timewise_convolve_13.begin() + k, timewise_convolve_13.begin() + k + 15, timewise_convolve_13.begin(), 0.0) / 7.0;
+						timewise_convolve_15[k] = std::inner_product(timewise_convolve_15.begin() + k, timewise_convolve_15.begin() + k + 15, sawtooth_filter.begin(), 0.0) / 7.0;
 					}
 					for (int j = 0; j < 192; j++) {
-						previous[i][j] = timewise_convolve_13[j + 15];
+						smoothed[i][j] = timewise_convolve_15[j + 15];
 					}
-					timewise_convolve_13.fill({ 0 });
+					timewise_convolve_15.fill({ 0 });
 				}
 
-				//todo: implement the convolve_2d_ padded function here on the contents of previous.
-				/*
-				*   mask = convolve_custom_filter_2d(mask,13,3,3)
 
-					@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64))
-					def float_zero_pad_2d(array, E,N):
-						X = E * 2
-						Y = N * 2
-						padded = numpy.zeros(((array.shape[0]+X,array.shape[1]+Y)), dtype=numpy.float64)
-						# Copy old array into correct space
-						padded[E:-E,N:-N] = array[:]
-
-						return padded
-
-
-
-				@numba.jit(numba.float64[:,:](numba.float64[:,:],numba.int64,numba.int64,numba.int64))
-				def convolve_custom_filter_2d(data: numpy.ndarray, N : int, M : int, O : int) :
-					E = N * 2
-					F = M * 2
-					padded = float_zero_pad_2d(data, F, E)
-					normal = padded.copy()
-					normal_t = padded.T.copy()
-					b = numpy.ravel(normal)
-					c = numpy.ravel(normal_t)
-
-					for all in range(O) :
-						normal = padded.copy()
-						normal_t = padded.T.copy()
-						b = numpy.ravel(normal)
-						c = numpy.ravel(normal_t)
-						b[:] = (same_convolution_float_1d(b[:], numpy.ones(N, dtype = numpy.float64)) / N)[:]//note: this is just same convolution, but a numba compatible custom function.
-						c[:] = (same_convolution_float_1d(c[:], numpy.ones(M, dtype = numpy.float64)) / M)[:]
-						padded = (normal + normal_t.T.copy()) / 2
-						return padded[F:-F, E : -E]
-				*/
-				//instructions:
-				// you will need two additional 2d arrays the same size.
-				// remember our second dimension is time.
-				// fill the centermost elements of both with `previous`.
-				// time is convolved with an array of three, frequency with an array of 13.
-				// so the arrays each need to be 257+13+13+same padding, by 192+3+3+ same padding.
-				// 				295 offset of 6
-				//200 offset of 1
-
-				// convolve each row with 13 in one array, then each column by 3 in the other.
-				// add the results together and divide by two.
-				// repeat three times.
-				// return the centermost elements into `previous`.
-
-
+				smooth_2d_1.fill({ 0 }); //clear corner padding
+				smooth_2d_2.fill({ 0 });
 
 				for (int i = 0; i < 257; i++) {
 					for (int j = 0; j < 192; j++) {
@@ -689,52 +660,59 @@ public:
 						smooth_2d_2[i + 6][j + 1] = previous[i][j];
 
 					}
+				}	//std::array<std::array<float, 200>, 295> smooth_2d_2 = {};
+
+
+				for (int e = 0; e < 2; e++) {
+
+					for (int i = 0; i < 200; i++) {
+						for (int j = 0; j < 295; j++) {
+							freqwise[j+13] = smooth_2d_1[j][i];
+
+						}
+						for (int k = 0; k < 257 + 13; k++) {
+							freqwise[i] = std::inner_product(freqwise.begin() + k, freqwise.begin() + k + 13, filter_long.begin(), 0.0) / 13.0;
+						}
+						for (int j = 0; j < 295; j++) {
+							smooth_2d_2[j][i] = freqwise[j+13];
+						}
+						freqwise.fill({ 0 });
+					}
+
+
+
+					entropy_padded.fill({ 0 }); //we will reuse entropy padded for this step cause we dont need it for the rest of the loop
+
+
+					for (int i = 0; i < 257; i++) {
+						for (int j = 0; j < 200; j++) {
+							entropy_padded[j + 3] = smooth_2d_1[i][j];
+
+						}
+						for (int k = 0; k < 192 + 3; k++) {
+							entropy_padded[k] = std::inner_product(entropy_padded.begin() + k, entropy_padded.begin() + k + 3, entropy_filter.begin(), 0.0) / 3.0;
+						}
+						for (int j = 0; j < 200; j++) {
+							smooth_2d_1[i][j] = entropy_padded[j + 3];
+						}
+						entropy_padded.fill({ 0 });
+					}
+
+					for (int i = 0; i < 295; i++) {
+						for (int j = 0; j < 200; j++) {
+							//apply the mask
+							smooth_2d_1[i][j] = (smooth_2d_1[i][j] + smooth_2d_2[i][j]) / 2.0;
+							smooth_2d_2[i][j] = smooth_2d_1[i][j];
+
+						}
+					}
+
 				}
-
-				for (int i = 0; i < 2; i++){
-
-				for (int i = 0; i < 192; i++) {
-					for (int j = 0; j < 257; j++) {
-						freqwise[j + 13] = smooth_2d_1[j][i];
-
-					}
-					for (int k = 0; k < 192 + 13; k++) {
-						freqwise[i] = std::inner_product(freqwise.begin() + k, freqwise.begin() + k + 13, filter_long.begin(), 0.0) / 13.0;
-					}
-					for (int j = 0; j < 295; j++) {
-						smooth_2d_2[j][i] = freqwise[j + 13];
-					}
-					freqwise.fill({ 0 });
-				}
-
-				entropy_padded.fill({ 0 }); //we will reuse entropy padded for this step cause we dont need it for the rest of the loop
-				for (int i = 0; i < 192; i++) {
-					for (int j = 0; j < 257; j++) {
-						entropy_padded[i + 3] = smooth_2d_1[i][j];
-
-					}
-					for (int k = 0; k < 192 + 13; k++) {
-						entropy_padded[i] = std::inner_product(entropy_padded.begin() + i, entropy_padded.begin() + i + 3, entropy_filter.begin(), 0.0) / 3.0;
-					}
-					for (int j = 0; j < 295; j++) {
-						smooth_2d_1[i][j] = entropy_padded[i + 3];
-					}
-					entropy_padded.fill({ 0 });
-				}
-
-				for (int i = 0; i < 257; i++) {
-					for (int j = 0; j < 192; j++) {
-						//apply the mask
-						smooth_2d_1[i + 6][j + 1] = (smooth_2d_1[i + 6][j + 1] + smooth_2d_2[i + 6][j + 1]) / 2.0;
-
-					}
-				}
-			}
 
 				for (int i = 0; i < 257; i++) {
 					for (int j = 0; j < 192; j++) {
 						//apply the smoothing
-						previous[i][j] = smooth_2d_1[i + 6][j + 1] = previous[i][j];
+						previous[i][j] = smooth_2d_1[i + 6][j + 1];
 
 					}
 				}
@@ -743,9 +721,9 @@ public:
 				stft(audio_padded, shifted_hann_window, stft_complex);
 
 				for (int i = 0; i < NBINS_last; i++) {
-					for (int j = 64; j < 128; j++) {
+					for (int j = 0; j < 64; j++) {
 						//apply the mask
-						stft_output[i][j] = stft_complex[i][j] * previous[i][j];
+						stft_output[i][j] = stft_complex[i][j+ 64] * previous[i][j+ 64];
 					}
 				}
 
@@ -791,30 +769,25 @@ void generate_sine_wave(std::array<float, 8192>& data, float freq, float phase, 
 #define M_PI_4 (M_PI / 4.0)
 #endif
 
-void generate_complex_wave(std::array<float, 8192>& data) {
-	data.fill(0.0f);
-
-	// Generate three sine waves with different frequencies, phases, and amplitudes
-	generate_sine_wave(data, 440.0f, 0.0f, 1.0f);
-	generate_sine_wave(data, 880.0f, M_PI_2, 0.5f);
-	generate_sine_wave(data, 1320.0f, M_PI_4, 0.25f);
-}
 
 
 
 #include <ctime>
 
 int main() {
-	MyDLLClass my_filter;
+	MYDLL_API my_filter;
+	my_filter.init_tables();
 	std::array<float, 8192> demo = { 0 };
-	generate_complex_wave(demo);
+	generate_sine_wave(demo, 440.0f, 0.0f, 1.0f);
+	generate_sine_wave(demo, 880.0f, M_PI_2, 0.5f);
+	generate_sine_wave(demo, 1320.0f, M_PI_4, 0.25f);
 	std::array<float, 8192> output = { 0 };
 
 	clock_t start_time, end_time;
 	start_time = clock(); // get start time
 
 	double sum = 0;
-	for (int i = 0; i < 20; i++) {
+	for (int i = 0; i < 3; i++) {
 		output = my_filter.process(demo); // execute the function
 		for (int i = 0; i < 8192; i++) {
 			sum = sum + abs(output[i]);
@@ -823,7 +796,7 @@ int main() {
 
 	end_time = clock(); // get end time
 	float duration = (float)(end_time - start_time) / CLOCKS_PER_SEC * 1000.0; // calculate duration in milliseconds
-	std::cout << "Total value " << sum  << std::endl; //note the value should be 3925.476302948533 if it equals the python's behavior.
+	std::cout << "Total value " << sum << std::endl;
 	std::cout << "Total execution time: " << duration << " milliseconds" << std::endl;
 	system("pause");
 
