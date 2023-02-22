@@ -685,8 +685,7 @@ public:
 				}
 			}
 		}
-		std::cout << " entropy count" << std::endl;
-		std::cout << count << std::endl;
+
 		if (count > 0) {
 			//initial criteria determined and entropy thresholded in one step.
 			count = 0; //clear for next run
@@ -904,18 +903,15 @@ will cause all three to be considered- that is to say, it is enough data for the
 The expected conclusion of processing it and summing the ABS of it, provided that in previous iterations
 the same input was processed, so that the overlapping buffer is also considered,
 is 3925.476302948533.
+for the c++, the output is 74000, so its obviously not doing the same thing.
+
 
 The first three iterations of the entropy padding should be:
 count: 33
 count: 97
 count: 128
 count: 128
-
+Note that this is not what is happening.
 For all iterations, the entropy max should be: 0.2758841200365006.
-
-
-
-
-
 
 */
