@@ -22,23 +22,28 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA.
 */
+
 //please note: this project is still a work in process and is not finished.
-//please do not attempt to use this code for any purpose until this line is removed.
+
 
 
 
 /*
-* Cleanup. CPP version 0.04 2/21/23
+* Cleanup. CPP version 0.10 2/21/23 - nearly working edition
 *  bugs to fix and behavior to refine:
-*  go over stft, istft, rfft, irfft behavior with fine toothed comb.
-* 
+*  go over stft, istft, with fine toothed comb.
 *  all other code has now been gone over properly.
+* statistical functions seem right.
+* stft and istft seem right but not sure have not validated output against python.
+* need to validate that fftw output is identical to numpy rfft, irfft.
+* fastpeaks is right.
+* entropy is now right.
+* code now returns something.
 *  stft code seems right. padding and filtering seems "right" but that doesn't make it right.
-*  We use same mode convolution, but this is without padding the inputs. Will everything be ok, without
-*  the extra FILTER_WIDTH before and after? a big unknown, but not one we cant correct now..
-*  also, in the python, we convolve *all* the mask elements, not just NBINS. This may have ramifications...
-*  most functions are now correct- entropy, fast_peaks, etc is all correct now.
-* idomatic c++ to replace some of my craptacular code
+*  We use same mode convolution, but this is without padding the inputs as we do in python, which was pretty much just me winging it.
+* in the python, i padded everything liberally and then sliced out the center. Usually, i would put the filters worth of padding on both
+*ends of the input. For sawtooth and entropy this can be easily modified, for the 2d convolve, the array that's written to
+*also has to keep the padded extants through all three iterations, and then finally write out to the input.
 *
 *
 */
