@@ -70,10 +70,6 @@ However, it does not allow slicing a subset of the array.
 
 */
 
-#include <array>
-#include <vector>
-
-#include <array>
 
 template <typename T, std::size_t Rows, std::size_t Cols>
 class Array2D : public std::array<std::array<T, Cols>, Rows> {
@@ -121,7 +117,6 @@ So, as a future exercise to others who may come after, i provide these (not test
 
 */
 
-#include <array>
 
 template <typename T, std::size_t N>
 class Array1D : public std::array<T, N> {
