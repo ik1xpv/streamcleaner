@@ -37,9 +37,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 //https://stackoverflow.com/questions/39675436/how-to-get-fftw-working-on-windows-for-dummies
 //http://ftp.fftw.org/install/windows.html
 //notes:
-//dont follow any of the instructions here for visual studio 2019 onwards.
-//just include the libfftw in the resource files of the solution,
-//and include the fftw3 header in the header files of the solution, and copy the dll into the executable directory.
+//for visual studio 2017 onwards:
+//generate the .lib for the fftw3f.
+//on the right, you'll notice the folder hierarchy for the solution.
+//right click and add - the correct header to the headers, the .lib to the libraries.
+//should just compile, then copy the dll appropriately.
+
 
 
 
