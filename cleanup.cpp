@@ -26,7 +26,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 //please do not attempt to use this code for any purpose until this line is removed.
 
 
-
 /*
 * Cleanup. CPP version 0.05 2/23/23
 * padding behavior for all convolutional smooth routines have been refined and corrected.
@@ -35,7 +34,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 *
 *
 */
-
 
 
 //https://stackoverflow.com/questions/39675436/how-to-get-fftw-working-on-windows-for-dummies
@@ -126,6 +124,7 @@ private:
 	std::array<std::array<float, 26 + 192 >, 6 + 257> horizontal = {};
 	//note this is not completely equivalent to same mode convolve. we pad extra and we conserve the products of the smoothing outwards until the end.
 	std::array<float, 26 + 192 + ENTROPY_FILTER_SIZE - 1> timewise_storage = {};
+
 	std::array<float, 6 + 257 + FREQ_FILTER_SIZE - 1> frequencywise_storage = {};
 	/// <summary>
 	/// name is a misnomer, it finds the ATD + the man.
@@ -743,6 +742,18 @@ public:
 				//conversely, the first dimension is convolved with an array of 13 and divided by 13, but is padded with 6.
 				//the second dimension is convolved with an array of 3, and divided by 3, but is padded with 13x2.
 				// we are confident about the above!
+
+
+				//now, we leave as an exercise to the reader an optimization to the below operations which is easily written in python but not here.
+				//Taking the below behavior, copy each of the padded rows into an offset for a 1d array.
+				//likewise, do the same with the transpose of the 2d.
+				//perform the convolution on the 1d for each, appropriately switching the filter size and the division.
+				//reverse the reshape back to the 2d, and for the transpose, re-transpose the product back.
+				//add the two together, dividing by two, then duplicate the first into the second.
+				//you now have the same behavior as below, but using a two 1d convolutional steps for each iteration,
+				//working over a much larger array, but with linear behavior that can automatically vectorize.
+				//copying is cheap on modern processors- convolutional optimization is more expensive.
+				//in python we already do this for the python version of the loop.
 
 				
 				for (int e = 0; e < 2; e++) {
