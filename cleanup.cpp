@@ -22,28 +22,16 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA.
 */
-
 //please note: this project is still a work in process and is not finished.
-
+//please do not attempt to use this code for any purpose until this line is removed.
 
 
 
 /*
-* Cleanup. CPP version 0.10 2/21/23 - nearly working edition
-*  bugs to fix and behavior to refine:
-*  go over stft, istft, with fine toothed comb.
-*  all other code has now been gone over properly.
-* statistical functions seem right.
-* stft and istft seem right but not sure have not validated output against python.
-* need to validate that fftw output is identical to numpy rfft, irfft.
-* fastpeaks is right.
-* entropy is now right.
-* code now returns something.
-*  stft code seems right. padding and filtering seems "right" but that doesn't make it right.
-*  We use same mode convolution, but this is without padding the inputs as we do in python, which was pretty much just me winging it.
-* in the python, i padded everything liberally and then sliced out the center. Usually, i would put the filters worth of padding on both
-*ends of the input. For sawtooth and entropy this can be easily modified, for the 2d convolve, the array that's written to
-*also has to keep the padded extants through all three iterations, and then finally write out to the input.
+* Cleanup. CPP version 0.05 2/23/23
+* padding behavior for all convolutional smooth routines have been refined and corrected.
+* entropy, fast_peaks, other routines have been refined and corrected
+* only remaining bugs are likely in stft and istft.
 *
 *
 */
@@ -116,16 +104,29 @@ private:
 	std::array<float, 257> temp_257 = {};
 	std::array<float, 128> temp_128 = {};
 
+	static constexpr int ENTROPY_FILTER_SIZE = 3;
+	static constexpr std::array<float, ENTROPY_FILTER_SIZE> three_filter = { 1.0,1.0,1.0 };
+	std::array<float, 192 + ENTROPY_FILTER_SIZE - 1> three_storage = {};
+
+	static constexpr int SAWTOOTH_FILTER_SIZE = 15;
+	static constexpr std::array<float, 15> sawtooth_filter = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
+	std::array<float, 192 + SAWTOOTH_FILTER_SIZE - 1> sawtooth_convolve_temp_storage = {};
+
+	static constexpr int FREQ_FILTER_SIZE = 13;
+	static constexpr std::array<float, 13> filter_long = { 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0 };
+
+
 	std::array<std::array<std::complex<float>, 192>, 257> stft_complex = {};
 	std::array<std::array<std::complex<float>, 64>, 257> stft_output = {};
 	std::array<std::array<std::complex<float>, 64>, 257> stft_zeros = {}; // for use in the scenario two where we're processing the residual buffer but without the audio
 	std::array<std::array<float, 192>, 257> stft_real = {};
 	std::array<std::array<float, 192>, 257> smoothed = {};
 	std::array<std::array<float, 192>, 257> previous = {};
-	std::array<std::array<float, 192>, 257> vertical = {};
-	std::array<std::array<float, 192>, 257> horizontal = {};
-
-
+	std::array<std::array<float, 26 + 192>, 6 + 257 > vertical = {};
+	std::array<std::array<float, 26 + 192 >, 6 + 257> horizontal = {};
+	//note this is not completely equivalent to same mode convolve. we pad extra and we conserve the products of the smoothing outwards until the end.
+	std::array<float, 26 + 192 + ENTROPY_FILTER_SIZE - 1> timewise_storage = {};
+	std::array<float, 6 + 257 + FREQ_FILTER_SIZE - 1> frequencywise_storage = {};
 	/// <summary>
 	/// name is a misnomer, it finds the ATD + the man.
 	/// The MAN is an attempt to improve over MAD, ATD in like measure.
@@ -452,9 +453,6 @@ private:
 		return output;
 	}
 
-	static constexpr int SAWTOOTH_FILTER_SIZE = 15;
-	static constexpr std::array<float, 15> sawtooth_filter = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
-	std::array<float, 192 + SAWTOOTH_FILTER_SIZE - 1> sawtooth_convolve_temp_storage = {};
 
 	/// <summary>
 	/// Performs same mode convolution in the time domain using a triangular, symmetric filter of 15 elements,
@@ -468,7 +466,7 @@ private:
 		sawtooth_convolve_temp_storage.fill(0.0);
 
 		for (int i = 0; i < NBINS_last; i++) {
-			for (int j = 0; j < 192; j++) {
+			for (int j = 13; j < 192; j++) {
 				sawtooth_convolve_temp_storage[j + SAWTOOTH_FILTER_SIZE - 1] = stft_real[i][j];
 			}
 
@@ -481,9 +479,6 @@ private:
 		}
 	}
 
-	static constexpr int ENTROPY_FILTER_SIZE = 3;
-	static constexpr std::array<float, ENTROPY_FILTER_SIZE> three_filter = { 1.0,1.0,1.0 };
-	std::array<float, 192 + ENTROPY_FILTER_SIZE - 1> three__storage = {};
 
 	/// <summary>
 	/// Performs same mode convolution in the time domain on a 1d input using a flat,3 element filter,
@@ -494,44 +489,19 @@ private:
 	/// <param name="row_out">The output</param>
 	void entropy_convolve(std::array<float, 192>& row_in, std::array<float, 192>& row_out) {
 
-		sawtooth_convolve_temp_storage.fill(0.0);
+		three_storage.fill(0.0);
 
 			for (int j = 0; j < 192; j++) {
-				three__storage[j + ENTROPY_FILTER_SIZE - 1] = row_in[j];
+				three_storage[j + ENTROPY_FILTER_SIZE - 1] = row_in[j];
 			}
 
 			for (int k = 0; k < 192; k++) {
-				float sum = std::inner_product(three__storage.begin() + k, three__storage.begin() + k + ENTROPY_FILTER_SIZE, three_filter.begin(), 0.0);
+				float sum = std::inner_product(three_storage.begin() + k, three_storage.begin() + k + ENTROPY_FILTER_SIZE, three_filter.begin(), 0.0);
 				row_out[k] = sum / 3.0;
 			}
 	}
 
 
-	static constexpr int FREQ_FILTER_SIZE = 13;
-	static constexpr std::array<float, 13> filter_long = { 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0 };
-	std::array<float, 257 + FREQ_FILTER_SIZE - 1> freq_convolve_temp_storage = {};
-
-	/// <summary>
-	/// Performs same mode convolution in the frequency domain using a flat filter of 13 elements,
-	///The product is then divided by 13 and stored in the output array.
-	/// Divided 
-	/// </summary>
-	/// <param name="row_in">The input</param>
-	/// <param name="row_out">The output</param>
-	void frequency_convolve(std::array<float, 257>& row_in, std::array<float, 257>& row_out) {
-
-		freq_convolve_temp_storage.fill(0.0);
-
-		for (int i = 0; i < NBINS_last; i++) {
-			freq_convolve_temp_storage[i + FREQ_FILTER_SIZE - 1] = row_in[i];
-			}
-
-			for (int k = 0; k < NBINS_last; k++) {
-				float sum = std::inner_product(freq_convolve_temp_storage.begin() + k, freq_convolve_temp_storage.begin() + k + FREQ_FILTER_SIZE, filter_long.begin(), 0.0);
-				row_out[k] = sum / 13.0;
-			}
-
-		}
 
 	/// <summary>
 	/// Finds the longest streak of ones in an array of 192 integers and returns it
@@ -746,47 +716,77 @@ public:
 				vertical.fill({ 0 }); //clear corner padding
 				horizontal.fill({ 0 });
 
-				for (int i = 0; i < 257; i++) {
+				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 192; j++) {
 						//apply the mask
-						vertical[i][j] = previous[i][j];
-						horizontal[i][j] = previous[i][j];
+						//remember that we include padding at both ends of filter size for intermediate products.
+						vertical[i+ ENTROPY_FILTER_SIZE][j+ FREQ_FILTER_SIZE] = previous[i][j];
+						horizontal[i+ ENTROPY_FILTER_SIZE][j+ FREQ_FILTER_SIZE] = previous[i][j];
 
 					}
-				}	//std::array<std::array<float, 200>, 295> smooth_2d_2 = {};
+				}	
 
 
 				//perform iterative 2d smoothing.
 				//note: this could likely be faster if we just unraveled and inserted 2x filter between each, and plugged it all into a 1d,
-				//and then did a 1d inner product summation. 
+				//and then did a 1d inner product summation.
+				//for time, the padding is FREQ_FILTER_SIZE
+				//for frequency, the padding is ENTROPY_FILTER_SIZE
+				//this is backwards intentionally
+				//remember, the first dimension is frequency, with 257 elements.
+				//the second dimension is time, with 192 elements.
+				//in the padded array, the frequency offset insert is 3, and we conserve all 6 padding- 3 before, 3 after
+				//in the padded array, the time offset is 13, and we conserve all 26 padding - 13 before, 13 after.
+				//thus, our frequency storage is std::array<float, 6 + 257 + FREQ_FILTER_SIZE - 1> frequencywise_storage = {};
+				//and our time storage is 
+				//std::array<float, 26 + 192 + ENTROPY_FILTER_SIZE - 1> timewise_storage = {};
+				//conversely, the first dimension is convolved with an array of 13 and divided by 13, but is padded with 6.
+				//the second dimension is convolved with an array of 3, and divided by 3, but is padded with 13x2.
+				// we are confident about the above!
 
+				
 				for (int e = 0; e < 2; e++) {
 
-					for (int i = 0; i < NBINS_last; i++) {
-						for (int j = 0; j < 192; j++) {
-							entropy_smoothed[j] = horizontal[i][j];
+					//do first dimension first
+
+					for (int i = 0; i < 192+ FREQ_FILTER_SIZE*2; i++) {//iterating over time
+						//each iteration, iterate through the working area + the padding area.
+						//start at zero, because our infill starts at 3, and therefore the padding area includes the area before.
+						// restrict by NBINS_last because too much would be overkill.
+						//at most this is the entire array, at the least, this is the padding and the filling.
+
+						frequencywise_storage.fill({ 0 }); //clear the working memory
+
+						for (int j = 0; j < NBINS_last + ENTROPY_FILTER_SIZE * 2; j++) {
+							//infill our temporary memory with the persistent padding and the data
+							frequencywise_storage[j] = vertical[j][i];
 						}
-						entropy_convolve(entropy_smoothed, entropy_smoothed);
-						for (int j = 0; j < 192; j++) {
-							horizontal[i][j] = entropy_smoothed[j];
+						for (int k = 0; k < NBINS_last + ENTROPY_FILTER_SIZE * 2; k++) {
+							float sum = std::inner_product(frequencywise_storage.begin() + k, frequencywise_storage.begin() + k + FREQ_FILTER_SIZE, filter_long.begin(), 0.0);
+							
+							vertical[k][i] = sum / 13.0;
 						}
 					}
 
+					for (int j = 0; j < NBINS_last + ENTROPY_FILTER_SIZE * 2; j++) {//iterating over time
+						timewise_storage.fill({ 0 }); //clear the working memory
 
-					for (int i = 0; i < 192; i++) {
-						for (int j = 0; j < 257; j++) {
-							temp_257[j] = vertical[j][i];
-						}
-						frequency_convolve(temp_257, temp_257);
-						for (int j = 0; j < NBINS_last; j++) {
-							vertical[j][i] = temp_257[j];
-						}
+					for (int i = 0; i < 192 + FREQ_FILTER_SIZE * 2; i++) {
+						//infill our temporary memory with the persistent padding and the data
+						timewise_storage[i] = horizontal[j][i];
 					}
+					for (int i = 0; i < 192 + FREQ_FILTER_SIZE * 2; i++) {
+						float sum = std::inner_product(timewise_storage.begin() + i, timewise_storage.begin() + i + ENTROPY_FILTER_SIZE, three_filter.begin(), 0.0);
+
+						horizontal[j][i] = sum / 3.0;
+					}
+				
+				}
 
 
-					for (int i = 0; i < NBINS_1; i++) {
-						for (int j = 0; j < 192; j++) {
-							//apply the mask
+					for (int i = 0; i < NBINS_last + ENTROPY_FILTER_SIZE * 2; i++) {
+						for (int j = 0; j < 192 + FREQ_FILTER_SIZE * 2; j++) {
+							//apply the mask, conserving the padding
 							vertical[i][j] = (vertical[i][j] + horizontal[i][j]) / 2.0;
 							horizontal[i][j] = vertical[i][j];
 
@@ -797,8 +797,8 @@ public:
 
 				for (int i = 0; i < NBINS_last; i++) {
 					for (int j = 0; j < 192; j++) {
-						//apply the smoothing
-						previous[i][j] = vertical[i][j];
+						//apply the smoothing, slicing out of our array
+						previous[i][j] = vertical[i + ENTROPY_FILTER_SIZE][j + FREQ_FILTER_SIZE];
 
 					}
 				}
@@ -908,15 +908,18 @@ will cause all three to be considered- that is to say, it is enough data for the
 The expected conclusion of processing it and summing the ABS of it, provided that in previous iterations
 the same input was processed, so that the overlapping buffer is also considered,
 is 3925.476302948533.
-for the c++, the output is 74000, so its obviously not doing the same thing.
-
 
 The first three iterations of the entropy padding should be:
 count: 33
 count: 97
 count: 128
 count: 128
-Note that this is not what is happening.
+
 For all iterations, the entropy max should be: 0.2758841200365006.
+
+
+
+
+
 
 */
