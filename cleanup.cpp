@@ -54,6 +54,99 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 
+/*
+
+for (auto [index, value] : std::enumerate(myArray)) {
+	// do something with value
+	std::cout << "Element at index " << index << " is " << value << std::endl;
+}
+todo : evaluate the performance impact of using this instead of the way we currently use for loops. This may provide a more concise approach,
+ultimately satisfying our objectives for some tasks. 
+However, it does not allow slicing a subset of the array.
+
+
+*/
+
+#include <array>
+#include <vector>
+
+#include <array>
+
+template <typename T, std::size_t Rows, std::size_t Cols>
+class Array2D : public std::array<std::array<T, Cols>, Rows> {
+public:
+	Array2D() = default;
+
+	void transpose() {
+		for (std::size_t i = 0; i < Rows; ++i) {
+			for (std::size_t j = i + 1; j < Cols; ++j) {
+				std::swap((*this)[i][j], (*this)[j][i]);
+			}
+		}
+		std::swap(rows_, cols_);
+	}
+
+	std::size_t rows() const { return rows_; }
+	std::size_t cols() const { return cols_; }
+
+	void ravel(T(&output)[Rows * Cols]) const {
+		std::size_t idx = 0;
+		for (std::size_t i = 0; i < rows_; ++i) {
+			for (std::size_t j = 0; j < cols_; ++j) {
+				output[idx++] = (*this)[i][j];
+			}
+		}
+	}
+
+private:
+	std::size_t rows_ = Rows;
+	std::size_t cols_ = Cols;
+};
+
+/*
+note: the above overloaded array specification includes a `ravel` and a `transpose` capability.
+The transpose does exactly what you imagine it does. So does the ravel. However, in the interest of forcing deterministic behavior,
+i've asked chatgpt to use an array output instead of a vector.
+This is for future use in assisting 1d convolve. 
+we are making a few assumptions:
+cache locality is important
+a 1d array being processed all at once is going to benefit from multiprocessing optimizations baked into the c runtime
+Array2D<type, x,y> name = {};
+
+in the python we do exactly this and it pretty much triples the speed- even when using our own innerproduct function!
+So, as a future exercise to others who may come after, i provide these (not tested to be working) helper objects.
+
+*/
+
+#include <array>
+
+template <typename T, std::size_t N>
+class Array1D : public std::array<T, N> {
+public:
+	Array1D() = default;
+
+	template <std::size_t Rows, std::size_t Cols>
+	std::array<std::array<T, Cols>, Rows> reshape(std::size_t rows, std::size_t cols) const {
+		std::array<std::array<T, Cols>, Rows> result;
+		std::size_t idx = 0;
+		for (std::size_t i = 0; i < rows; ++i) {
+			for (std::size_t j = 0; j < cols; ++j) {
+				result[i][j] = (*this)[idx++];
+			}
+		}
+		return result;
+	}
+};
+
+/* 
+for use with future flattening and convolving operations, the above template allows an array to be instantated as Array1d.
+the .reshape operator does exactly what you think it does.
+Array1D<type, x> name = {};
+*/
+
+
+
+
 # define M_PI           3.14159265358979323846  /* pi */
  
 //class __declspec(dllexport) Filter for use only in dll
@@ -1006,7 +1099,7 @@ int main() {
 		float sum = 0;
 		output = my_filter.process(demo); // execute the function
 		for (int i = 0; i < 8192; i++) {
-			sum = sum + abs(output[i]);
+			sum = sum + output[i];
 		}
 		std::cout << "Total value " << sum << std::endl;
 	}
