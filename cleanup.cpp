@@ -27,10 +27,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 /*
-* Cleanup. CPP version 0.12 2/23/23
-* all work has been revised and is becoming close to correct.
+* Cleanup. CPP version 0.13 2/25/23
+* all work has been revised and is becoming close(r) to correct.
+* convolution is now 100% guaranteed to behave like the python.
+* as an additional bonus, we are slightly faster than before.
 * all functions have been modified to make them work as closely to the python as possible.
-* however, it's still not behaving like the python at all.
+* however, it's still not behaving like the python.. yet.
 */
 
 
@@ -45,108 +47,22 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 
-
 #include <iostream>
 #include <complex>
 #include <numeric>
 #include <algorithm>
 #include <cmath>
 #include <array>
-
+#include <execution>
 #include "fftw3.h"
 
 
-
-/*
-
-for (auto [index, value] : std::enumerate(myArray)) {
-	// do something with value
-	std::cout << "Element at index " << index << " is " << value << std::endl;
-}
-todo : evaluate the performance impact of using this instead of the way we currently use for loops. This may provide a more concise approach,
-ultimately satisfying our objectives for some tasks. 
-However, it does not allow slicing a subset of the array.
-
-
-*/
-
-
-template <typename T, std::size_t Rows, std::size_t Cols>
-class Array2D : public std::array<std::array<T, Cols>, Rows> {
-public:
-	Array2D() = default;
-
-	void transpose() {
-		for (std::size_t i = 0; i < Rows; ++i) {
-			for (std::size_t j = i + 1; j < Cols; ++j) {
-				std::swap((*this)[i][j], (*this)[j][i]);
-			}
-		}
-		std::swap(rows_, cols_);
-	}
-
-	std::size_t rows() const { return rows_; }
-	std::size_t cols() const { return cols_; }
-
-	void ravel(T(&output)[Rows * Cols]) const {
-		std::size_t idx = 0;
-		for (std::size_t i = 0; i < rows_; ++i) {
-			for (std::size_t j = 0; j < cols_; ++j) {
-				output[idx++] = (*this)[i][j];
-			}
-		}
-	}
-
-private:
-	std::size_t rows_ = Rows;
-	std::size_t cols_ = Cols;
-};
-
-/*
-note: the above overloaded array specification includes a `ravel` and a `transpose` capability.
-The transpose does exactly what you imagine it does. So does the ravel. However, in the interest of forcing deterministic behavior,
-i've asked chatgpt to use an array output instead of a vector.
-This is for future use in assisting 1d convolve. 
-we are making a few assumptions:
-cache locality is important
-a 1d array being processed all at once is going to benefit from multiprocessing optimizations baked into the c runtime
-Array2D<type, x,y> name = {};
-
-in the python we do exactly this and it pretty much triples the speed- even when using our own innerproduct function!
-So, as a future exercise to others who may come after, i provide these (not tested to be working) helper objects.
-
-*/
-
-
-template <typename T, std::size_t N>
-class Array1D : public std::array<T, N> {
-public:
-	Array1D() = default;
-
-	template <std::size_t Rows, std::size_t Cols>
-	std::array<std::array<T, Cols>, Rows> reshape(std::size_t rows, std::size_t cols) const {
-		std::array<std::array<T, Cols>, Rows> result;
-		std::size_t idx = 0;
-		for (std::size_t i = 0; i < rows; ++i) {
-			for (std::size_t j = 0; j < cols; ++j) {
-				result[i][j] = (*this)[idx++];
-			}
-		}
-		return result;
-	}
-};
-
-/* 
-for use with future flattening and convolving operations, the above template allows an array to be instantated as Array1d.
-the .reshape operator does exactly what you think it does.
-Array1D<type, x> name = {};
-*/
 
 
 
 
 # define M_PI           3.14159265358979323846  /* pi */
- 
+
 //class __declspec(dllexport) Filter for use only in dll
 class Filter
 {
@@ -181,9 +97,11 @@ private:
 
 
 	float t = 0, initial = 0, multiplier = 0, MAXIMUM = 0.6122169028112414, constant_temp = 0, test = 0, thresh1 = 0.0;
-	int flag = 0, count = 0,  truecount = 0;
+	int flag = 0, count = 0, truecount = 0;
 	float CONST_1 = 0.057, CONST_last = 0.057;
 	int NBINS_1 = 37, NBINS_last = 0;
+	static constexpr int TIME_PAD = 13;
+	static constexpr int FREQ_PAD = 3;
 
 	std::array<std::complex<float>, 512> temp_complex_512 = {};
 	std::array<float, 512> temp_512 = {};
@@ -202,7 +120,6 @@ private:
 	std::array<std::array<float, 26 + 192>, 6 + 257 > vertical = {};
 	std::array<std::array<float, 26 + 192 >, 6 + 257> horizontal = {};
 	//note this is not completely equivalent to same mode convolve. we pad extra and we conserve the products of the smoothing outwards until the end.
-	std::array<float, 26 + 192 > timewise_storage = {};
 	std::array<float, 6 + 257> frequencywise_storage = {};
 	/// <summary>
 	/// name is a misnomer, it finds the ATD + the man.
@@ -230,7 +147,7 @@ private:
 
 		// Compute the median of arr
 		sort(arr.begin(), arr.begin() + n);
-		float t = (n % 2 == 0) ? (arr[n / 2] + arr[(n / 2) - 1]) / 2.0 : arr[n / 2];
+		float t = (n % 2 == 0) ? (arr[n / 2] + arr[(n / 2) - 1]) / 2.0f : arr[n / 2];
 
 		// Compute the median of the absolute difference between arr and t
 		std::array<float, 257> non_zero_diff;
@@ -238,7 +155,7 @@ private:
 			non_zero_diff[i] = abs(arr[i] - t);
 		}
 		sort(non_zero_diff.begin(), non_zero_diff.begin() + n);
-		float e = (n % 2 == 0) ? (non_zero_diff[n / 2] + non_zero_diff[(n / 2) - 1]) / 2.0 : non_zero_diff[n / 2];
+		float e = (n % 2 == 0) ? (non_zero_diff[n / 2] + non_zero_diff[(n / 2) - 1]) / 2.0f : non_zero_diff[n / 2];
 
 		// Compute the square root of the mean of the squared absolute deviation from e
 		float sum_x = 0.0;
@@ -321,11 +238,11 @@ private:
 	/// <param name="Y"></param>
 	/// <returns></returns>
 	inline float correlationCoefficient(const std::array<float, 257>& X, const std::array<float, 257>& Y) {
-		float sum_X = accumulate(X.begin(), X.begin() + NBINS_last, 0.0);
-		float sum_Y = accumulate(Y.begin(), Y.begin() + NBINS_last, 0.0);
-		float sum_XY = inner_product(X.begin(), X.begin() + NBINS_last, Y.begin(), 0.0);
-		float squareSum_X = inner_product(X.begin(), X.begin() + NBINS_last, X.begin(), 0.0);
-		float squareSum_Y = inner_product(Y.begin(), Y.begin() + NBINS_last, Y.begin(), 0.0);
+		float sum_X = accumulate(X.begin(), X.begin() + NBINS_last, 0.0f);
+		float sum_Y = accumulate(Y.begin(), Y.begin() + NBINS_last, 0.0f);
+		float sum_XY = inner_product(X.begin(), X.begin() + NBINS_last, Y.begin(), 0.0f);
+		float squareSum_X = inner_product(X.begin(), X.begin() + NBINS_last, X.begin(), 0.0f);
+		float squareSum_Y = inner_product(Y.begin(), Y.begin() + NBINS_last, Y.begin(), 0.0f);
 
 		float corr = (NBINS_last * sum_XY - sum_X * sum_Y) /
 			sqrt((NBINS_last * squareSum_X - sum_X * sum_X) *
@@ -372,8 +289,8 @@ private:
 	/// </summary>
 	inline void determine_entropy_maximum() {
 		temp_257.fill({ 0 });
-		temp_257[NBINS_last - 1] = 1.0;
-		MAXIMUM = 1.0 - correlationCoefficient(temp_257, logit_distribution);
+		temp_257[NBINS_last - 1] = 1.0f;
+		MAXIMUM = 1.0f - correlationCoefficient(temp_257, logit_distribution);
 	}
 
 	/// <summary>
@@ -392,17 +309,17 @@ private:
 			// Create a subset of the first NBINS elements of d and sort it
 			sort(temp_257.begin(), temp_257.begin() + NBINS_last);
 
-			float dx = temp_257[NBINS_last-1] - temp_257[0];
+			float dx = temp_257[NBINS_last - 1] - temp_257[0];
 			for (int j = 0; j < NBINS_last; j++) {
 				temp_257[j] = (temp_257[j] - temp_257[0]) / dx;
 			}
 
 			float v = correlationCoefficient(temp_257, logit_distribution);
 			if (isnan(v)) {
-				entropy_unmasked[i] = 0;
+				entropy_unmasked[i] = 0.0f;
 			}
 			else {
-				entropy_unmasked[i] = 1.0 - v;
+				entropy_unmasked[i] = 1.0f - v;
 			}
 		}
 	}
@@ -448,7 +365,7 @@ private:
 
 
 
-	static constexpr int NUM_STFT_FREQUENCIES = 512; 
+	static constexpr int NUM_STFT_FREQUENCIES = 512;
 	//is this correct? should this be 256 instead?
 
 	fftwf_plan plan_forward = fftwf_plan_dft_r2c_1d(NUM_STFT_FREQUENCIES, temp_512.data(), reinterpret_cast<fftwf_complex*>(temp_complex.data()), FFTW_ESTIMATE);
@@ -478,10 +395,10 @@ private:
 			for (int j = 0; j < 512; j++) {
 				temp_512[j] = temp_512[j] * window[j];
 			}
-			fftwf_execute(plan_forward); 
+			fftwf_execute(plan_forward);
 
 			for (int e = 0; e < 257; e++) {
-				out[e][i] = temp_complex[e] ;
+				out[e][i] = temp_complex[e];
 			}
 		}
 	}
@@ -519,13 +436,13 @@ private:
 				buffer[j] = buffer[j + 128];
 			}
 			for (int j = 0; j < 128; ++j) {
-				buffer[j+256] = 0.0; //clear the last 128 elements
+				buffer[j + 256] = 0.0; //clear the last 128 elements
 			}
 			for (int j = 0; j < 384; ++j) {
-				buffer[j] += temp_512[j+128];
+				buffer[j] += temp_512[j + 128];
 			}
 			for (int j = 0; j < 128; ++j) {
-				output[(i*128) + j] = temp_128[j];
+				output[(i * 128) + j] = temp_128[j];
 			}
 		}
 		return output;
@@ -538,81 +455,121 @@ private:
 		//works with only odd sized kernels- but we only use odd sized kernels so its fine.
 		constexpr int KERNEL_SIZE = 3;
 		constexpr int INPUT_SIZE = 204;
-
-		constexpr int PADDING_EACH = (KERNEL_SIZE - 1) / 2; //resolves to PADDING_EACH = 1;
-
+		constexpr int N_LEFT = KERNEL_SIZE / 2;
+		constexpr int N_RIGHT = KERNEL_SIZE - N_LEFT - 1;
 		constexpr std::array<float, 3> kernel = { 1.0, 1.0, 1.0 };
 
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> padded = {};
 
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			padded[i + PADDING_EACH] = in[i];
+		// Create output array
+		// Perform the convolution
+		std::array<float, INPUT_SIZE + (KERNEL_SIZE * 2)> ret = {};
+
+		/*
+			for i in range(n2 - n_left, n2):
+			ret[idx] = innerprod(ap1[:i], ap2[-i:])
+			idx += inc
+		*/
+		// Loop over the first portion of the output, where the filter extends beyond the left edge of the input
+		for (int i = 0; i < N_LEFT; i++) {
+			ret[i] = std::inner_product(in.begin(), in.begin() + KERNEL_SIZE - i, kernel.rbegin(), 0.0f);
+		}
+		/*
+				for i in range(n1 - n2 + 1):
+			ret[idx] = innerprod(ap1[i : i + n2], ap2)
+			idx += inc
+		*/
+		// Loop over the middle portion of the output, where the filter is entirely contained within the input
+		
+		for (int i = 0; i < INPUT_SIZE - KERNEL_SIZE + 1; i++) {
+			ret[i + N_LEFT] = std::inner_product(in.begin() + i, in.begin() + i + KERNEL_SIZE, kernel.begin(), 0.0f);
 		}
 
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> convolved = {};
 
-		for (int i = KERNEL_SIZE - 1; i < INPUT_SIZE + PADDING_EACH; i++) {
-			for (int k = 0; k < KERNEL_SIZE; k++) {
-				convolved[i] += padded[i - k] * kernel[k];
+		// Loop over the last portion of the output, where the filter extends beyond the right edge of the input
+		/*
+				for i in range(n2 - 1, n2 - 1 - n_right, -1):
+			ret[idx] = innerprod(ap1[-i:], ap2[:i])
+			idx += inc
+
+		*/
+		for (int i = INPUT_SIZE - N_RIGHT; i < INPUT_SIZE; i++) {
+			float sum = 0.0f;
+			int kernel_idx = 0;
+			for (int j = i - KERNEL_SIZE + 1; j <= i; j++) {
+				sum += in[j] * kernel[kernel_idx++];
 			}
+			ret[i] = sum;
 		}
 
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			in[i] = convolved[i + PADDING_EACH];
-		}
+		std::copy(ret.begin(), ret.begin() + INPUT_SIZE, in.begin());
 	}
 
 
+	inline void convolve_same_sawtooth(std::array<float, 222>& in)
+	{
+		//we only use odd sized kernels.
+		constexpr int KERNEL_SIZE = 15;
+		constexpr int INPUT_SIZE = 192;
+		constexpr int N_LEFT = KERNEL_SIZE / 2;
+		constexpr int N_RIGHT = KERNEL_SIZE - N_LEFT - 1;
+		constexpr std::array<float, 15> kernel = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
+
+		std::array<float, INPUT_SIZE + (KERNEL_SIZE * 2)> ret = {};
+
+		/*
+			for i in range(n2 - n_left, n2):
+			ret[idx] = innerprod(ap1[:i], ap2[-i:])
+			idx += inc
+		*/
+		// Loop over the first portion of the output, where the filter extends beyond the left edge of the input
+		for (int i = 0; i < N_LEFT; i++) {
+			ret[i] = std::inner_product(in.begin(), in.begin() + KERNEL_SIZE - i, kernel.rbegin(), 0.0f);
+		}
+		/*
+				for i in range(n1 - n2 + 1):
+			ret[idx] = innerprod(ap1[i : i + n2], ap2)
+			idx += inc
+		*/
+		// Loop over the middle portion of the output, where the filter is entirely contained within the input
+
+		for (int i = 0; i < INPUT_SIZE - KERNEL_SIZE + 1; i++) {
+			ret[i + N_LEFT] = std::inner_product(in.begin() + i, in.begin() + i + KERNEL_SIZE, kernel.begin(), 0.0f);
+		}
+
+		// Loop over the last portion of the output, where the filter extends beyond the right edge of the input
+		/*
+				for i in range(n2 - 1, n2 - 1 - n_right, -1):
+			ret[idx] = innerprod(ap1[-i:], ap2[:i])
+			idx += inc
+
+		*/
+		for (int i = INPUT_SIZE - N_RIGHT; i < INPUT_SIZE; i++) {
+			float sum = 0.0f;
+			int kernel_idx = 0;
+			for (int j = i - KERNEL_SIZE + 1; j <= i; j++) {
+				sum += in[j] * kernel[kernel_idx++];
+			}
+			ret[i] = sum;
+		}
+
+		std::copy(ret.begin(), ret.begin() + INPUT_SIZE, in.begin());
+	}
+	
 	inline void numpy_entropy_smooth(std::array<float, 192>& in, std::array<float, 192>& out) {
 		constexpr int PADDING_SIZE = 6;
 		constexpr int INPUT_SIZE = 192;
 
-		std::array<float, 192 + PADDING_SIZE*2> padded = {};
+		std::array<float, 192 + PADDING_SIZE * 2> padded = {};
 		for (int i = PADDING_SIZE; i < INPUT_SIZE + PADDING_SIZE; i++) {
 			padded[i] = in[i - PADDING_SIZE];
 		}
 		convolve_same_entropy(padded);
 
-		for (int i = 6; i < INPUT_SIZE + PADDING_SIZE; i++) {
+		for (int i = PADDING_SIZE; i < INPUT_SIZE + PADDING_SIZE; i++) {
 			out[i - PADDING_SIZE] = padded[i];
 		}
 	}
-
-
-
-
-
-
-	inline void convolve_same_sawtooth(std::array<float, 192 + 30>& in)
-	{
-		// assumes a kernel size of three and an input of INPUT_SIZE.
-		//works with only odd sized kernels- but we only use odd sized kernels so its fine.
-		constexpr int KERNEL_SIZE = 15;
-		constexpr int INPUT_SIZE = 192+ KERNEL_SIZE*2;
-
-		constexpr int PADDING_EACH = (KERNEL_SIZE - 1) / 2; //resolves to PADDING_EACH = 1;
-
-		constexpr std::array<float, 15> kernel = { 0.0, 0.14285714, 0.28571429, 0.42857143, 0.57142857, 0.71428571, 0.85714286, 1.0, 0.85714286, 0.71428571, 0.57142857, 0.42857143, 0.28571429, 0.14285714, 0.0 };
-
-
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> padded = {};
-
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			padded[i + PADDING_EACH] = in[i];
-		}
-
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> convolved = {};
-
-		for (int i = KERNEL_SIZE - 1; i < INPUT_SIZE + PADDING_EACH; i++) {
-			for (int k = 0; k < KERNEL_SIZE; k++) {
-				convolved[i] += padded[i - k] * kernel[k];
-			}
-		}
-
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			in[i] = convolved[i + PADDING_EACH];
-		}
-	}
+	
 	inline void numpy_sawtooth_smooth(std::array<float, 192>& in) {
 		constexpr int PADDING_SIZE = 15;
 		constexpr int INPUT_SIZE = 192;
@@ -636,27 +593,53 @@ private:
 		constexpr int KERNEL_SIZE = 13;
 		constexpr int INPUT_SIZE = 257 + 6;
 
-		constexpr int PADDING_EACH = (KERNEL_SIZE - 1) / 2; //resolves to PADDING_EACH = 1;
+		constexpr std::array<float, 13> kernel = { 1.0,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 };
 
-		constexpr std::array<float, 13> kernel = { 1.0,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0};
+		// Compute the number of left and right elements
+		const int N_LEFT = KERNEL_SIZE / 2;
+		const int N_RIGHT = KERNEL_SIZE - N_LEFT - 1;
 
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> padded = {};
+		// Create output array
+		// Perform the convolution
+		std::array<float, INPUT_SIZE + (KERNEL_SIZE * 2)> ret = {};
 
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			padded[i + PADDING_EACH] = in[i];
+		/*
+			for i in range(n2 - n_left, n2):
+			ret[idx] = innerprod(ap1[:i], ap2[-i:])
+			idx += inc
+		*/
+		// Loop over the first portion of the output, where the filter extends beyond the left edge of the input
+		for (int i = 0; i < N_LEFT; i++) {
+			ret[i] = std::inner_product(in.begin(), in.begin() + KERNEL_SIZE - i, kernel.rbegin(), 0.0f);
+		}
+		/*
+				for i in range(n1 - n2 + 1):
+			ret[idx] = innerprod(ap1[i : i + n2], ap2)
+			idx += inc
+		*/
+		// Loop over the middle portion of the output, where the filter is entirely contained within the input
+
+		for (int i = 0; i < INPUT_SIZE - KERNEL_SIZE + 1; i++) {
+			ret[i + N_LEFT] = std::inner_product(in.begin() + i, in.begin() + i + KERNEL_SIZE, kernel.begin(), 0.0f);
 		}
 
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> convolved = {};
+		// Loop over the last portion of the output, where the filter extends beyond the right edge of the input
+		/*
+				for i in range(n2 - 1, n2 - 1 - n_right, -1):
+			ret[idx] = innerprod(ap1[-i:], ap2[:i])
+			idx += inc
 
-		for (int i = KERNEL_SIZE - 1; i < INPUT_SIZE + PADDING_EACH; i++) {
-			for (int k = 0; k < KERNEL_SIZE; k++) {
-				convolved[i] += padded[i - k] * kernel[k];
+		*/
+		for (int i = INPUT_SIZE - N_RIGHT; i < INPUT_SIZE; i++) {
+			float sum = 0.0f;
+			int kernel_idx = 0;
+			for (int j = i - KERNEL_SIZE + 1; j <= i; j++) {
+				sum += in[j] * kernel[kernel_idx++];
 			}
+			ret[i] = sum;
 		}
 
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			in[i] = convolved[i + PADDING_EACH];
-		}
+		std::copy(ret.begin(), ret.begin() + INPUT_SIZE, in.begin());
 	}
 
 	inline void convolve_same_time(std::array<float, 192 + 26>& in)
@@ -665,27 +648,58 @@ private:
 		constexpr int KERNEL_SIZE = 3;
 		constexpr int INPUT_SIZE = 192 + 26;
 
-		constexpr int PADDING_EACH = (KERNEL_SIZE - 1) / 2; //resolves to PADDING_EACH = 1;
+		constexpr std::array<float, 3> kernel = { 1.0,1.0 ,1.0 };
 
-		constexpr std::array<float, 3> kernel = { 1.0,1.0 ,1.0};
+		// Compute the number of left and right elements
+		const int N_LEFT = KERNEL_SIZE / 2;
+		const int N_RIGHT = KERNEL_SIZE - N_LEFT - 1;
 
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> padded = {};
+		// Create output array
+		// Perform the convolution
+		std::array<float, INPUT_SIZE + (KERNEL_SIZE * 2)> ret = {};
 
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			padded[i + PADDING_EACH] = in[i];
+		/*
+			for i in range(n2 - n_left, n2):
+			ret[idx] = innerprod(ap1[:i], ap2[-i:])
+			idx += inc
+		*/
+		// Loop over the first portion of the output, where the filter extends beyond the left edge of the input
+		for (int i = 0; i < N_LEFT; i++) {
+			ret[i] = std::inner_product(in.begin(), in.begin() + KERNEL_SIZE - i, kernel.rbegin(), 0.0f);
+		}
+		/*
+				for i in range(n1 - n2 + 1):
+			ret[idx] = innerprod(ap1[i : i + n2], ap2)
+			idx += inc
+		*/
+		// Loop over the middle portion of the output, where the filter is entirely contained within the input
+
+		/*for (int i = 0; i < INPUT_SIZE - KERNEL_SIZE + 1; i++) {
+			ret[i + N_LEFT] = std::inner_product(in.begin() + i, in.begin() + i + KERNEL_SIZE, kernel.begin(), 0.0f);
+		}*/
+
+		for (int i = 0; i < INPUT_SIZE - KERNEL_SIZE + 1; i++) {
+			ret[i + N_LEFT] = std::inner_product(in.begin() + i, in.begin() + i + KERNEL_SIZE, kernel.begin(), 0.0f);
 		}
 
-		std::array<float, INPUT_SIZE + PADDING_EACH * 2> convolved = {};
+		// Loop over the last portion of the output, where the filter extends beyond the right edge of the input
+		/*
+				for i in range(n2 - 1, n2 - 1 - n_right, -1):
+			ret[idx] = innerprod(ap1[-i:], ap2[:i])
+			idx += inc
 
-		for (int i = KERNEL_SIZE - 1; i < INPUT_SIZE + PADDING_EACH; i++) {
-			for (int k = 0; k < KERNEL_SIZE; k++) {
-				convolved[i] += padded[i - k] * kernel[k];
+		*/
+		for (int i = INPUT_SIZE - N_RIGHT; i < INPUT_SIZE; i++) {
+			float sum = 0.0f;
+			int kernel_idx = 0;
+			for (int j = i - KERNEL_SIZE + 1; j <= i; j++) {
+				sum += in[j] * kernel[kernel_idx++];
 			}
+			ret[i] = sum;
 		}
 
-		for (int i = 0; i < INPUT_SIZE; i++) {
-			in[i] = convolved[i + PADDING_EACH];
-		}
+
+		std::copy(ret.begin(), ret.begin() + INPUT_SIZE, in.begin());
 	}
 
 	/// <summary>
@@ -698,7 +712,7 @@ private:
 	/// </summary>
 	/// <param name="stft_real">The input</param>
 	/// <param name="smoothed">The output</param>
-	void sawtooth_convolve(std::array<std::array<float, 192>, 257>& stft_real, std::array<std::array<float, 192>, 257>& smoothed) {
+	inline void sawtooth_convolve(std::array<std::array<float, 192>, 257>& stft_real, std::array<std::array<float, 192>, 257>& smoothed) {
 
 		std::array<float, 192> temp = {};
 
@@ -708,7 +722,7 @@ private:
 			}
 			numpy_sawtooth_smooth(temp);
 			for (int j = 0; j < 192; j++) {
-				smoothed[i][j] = temp[j]/7.0;
+				smoothed[i][j] = temp[j] / 7.0f;
 			}
 		}
 	}
@@ -776,6 +790,45 @@ private:
 		}
 	}
 
+	inline void process_entropy() {
+
+		fast_entropy(stft_real);
+		numpy_entropy_smooth(entropy_unmasked, entropy_smoothed);
+
+		entropy_thresholded.fill({ 0 });
+
+
+		float ent_max = 0;
+
+
+		for (int i = 0; i < 192; i++) {
+			if (entropy_smoothed[i] > ent_max) {
+				ent_max = entropy_smoothed[i];
+			}
+		}
+
+		std::cout << ent_max << std::endl;
+
+
+		for (int i = 0; i < 192; i++) {
+			if (entropy_smoothed[i] > CONST_last) {
+				entropy_thresholded[i] = 1;
+				if ((i > 30) && (i < 160)) { //same thing as numpy slice of [32:128+32]
+					count++;
+					truecount++;
+				}
+			}
+		}
+		std::cout << count << std::endl;
+
+		if ((count > 0) && (truecount > 22 || longestConsecutive(entropy_thresholded) > 16)) {
+			flag = 2;
+			remove_outliers(entropy_thresholded, 0, 6, 1);
+			remove_outliers(entropy_thresholded, 1, 2, 0);
+		}
+		truecount = 0;
+		count = 0;
+	}
 
 public:
 
@@ -833,7 +886,7 @@ public:
 
 
 		//in this function we are only to allocate and do reference based manipulation of data- never copy or move. 
-		for (int i = 0; i < 8192*2; i++) {
+		for (int i = 0; i < 8192 * 2; i++) {
 			audio[i] = audio[i + 8192];
 		}
 		//rapidly copy in the audio
@@ -855,199 +908,154 @@ public:
 				stft_real[i][j] = abs(stft_complex[i][j]);
 			}
 		}
-		fast_entropy(stft_real);
-		numpy_entropy_smooth(entropy_unmasked, entropy_smoothed);
-		
-		entropy_thresholded.fill({ 0 });
+
+		process_entropy();
+		if (flag == 2) {
+
+			threshold(stft_real, t);
+			find_max(stft_real, initial);
+
+			sawtooth_convolve(stft_real, smoothed);
 
 
-		float ent_max = 0;
+			// Transpose data into scratch
 
 
-		for (int i = 0; i < 192; i++) {
-			if (entropy_smoothed[i] > ent_max) {
-				ent_max = entropy_smoothed[i];
-			}
-		}
-		
-		std::cout << ent_max << std::endl;
+			fast_peaks(smoothed, previous);
 
-
-		for (int i = 0; i < 192; i++) {
-			if (entropy_smoothed[i] > CONST_last) {
-				entropy_thresholded[i ] = 1;
-				if ((i > 30) && (i < 160)) { //same thing as numpy slice of [32:128+32]
-					count++;
-					truecount++;
+			for (int i = 0; i < NBINS_last; i++) {
+				for (int j = 0; j < 192; j++) {
+					if (previous[i][j] == 0) {
+						stft_real[i][j] = 0.0;
+					}
 				}
 			}
-		}
-		std::cout << count << std::endl;
 
-		if (count > 0) {
-			//initial criteria determined and entropy thresholded in one step.
-			count = 0; //clear for next run
-
-			if (truecount > 22 || longestConsecutive(entropy_thresholded) > 16) {
-				truecount = 0;//clear for next run
-				remove_outliers(entropy_thresholded, 0, 6, 1);
-				remove_outliers(entropy_thresholded, 1, 2, 0);
-				threshold(stft_real, t);
-				find_max(stft_real, initial);
-
-				sawtooth_convolve(stft_real, smoothed);
+			find_max(stft_real, multiplier);
+			multiplier = multiplier / initial;
+			if (multiplier > 1) { multiplier = 1; }
 
 
-				// Transpose data into scratch
+			sawtooth_convolve(stft_real, smoothed);
 
 
-				fast_peaks(smoothed, previous);
+			fast_peaks(smoothed, smoothed);
 
-				for (int i = 0; i < NBINS_last; i++) {
-					for (int j = 0; j < 192; j++) {
-						if (previous[i][j] == 0) {
-							stft_real[i][j] = 0.0;
-						}
+			for (int i = 0; i < NBINS_last; i++) {
+				for (int j = 0; j < 192; j++) {
+					initial = smoothed[i][j] * multiplier;
+					if (previous[i][j] > initial) {
+						previous[i][j] = initial;
 					}
 				}
+			}
 
-				find_max(stft_real, multiplier);
-				multiplier = multiplier / initial;
-				if (multiplier > 1) { multiplier = 1; }
-
-
-				sawtooth_convolve(stft_real, smoothed);
+			sawtooth_convolve(previous, previous);
 
 
 
+			vertical.fill({ 0 }); //clear corner padding
+			horizontal.fill({ 0 });
 
-				fast_peaks(smoothed, smoothed);
+			for (int i = 0; i < NBINS_last; i++) {
+				for (int j = 0; j < 192; j++) {
+					//apply the mask
+					//remember that we include padding at both ends of filter size for intermediate products.
+					vertical[i + FREQ_PAD][j + TIME_PAD] = previous[i][j];
+					horizontal[i + FREQ_PAD][j + TIME_PAD] = previous[i][j];
 
-				for (int i = 0; i < NBINS_last; i++) {
-					for (int j = 0; j < 192; j++) {
-						initial = smoothed[i][j] * multiplier;
-						if (previous[i][j] > initial) {
-							previous[i][j] = initial;
-						}
-					}
 				}
+			}
 
 
-				sawtooth_convolve(previous, previous);
-				constexpr int TIME_PAD = 13;
-				constexpr int FREQ_PAD = 3;
-
-
-				vertical.fill({ 0 }); //clear corner padding
-				horizontal.fill({ 0 });
-
-				for (int i = 0; i < NBINS_last; i++) {
-					for (int j = 0; j < 192; j++) {
-						//apply the mask
-						//remember that we include padding at both ends of filter size for intermediate products.
-						vertical[i+ FREQ_PAD][j+ TIME_PAD] = previous[i][j];
-						horizontal[i+ FREQ_PAD][j+ TIME_PAD] = previous[i][j];
-
-					}
-				}	
-
-
-				//perform iterative 2d smoothing.
+			//perform iterative 2d smoothing.
 
 
 
-				//now, we leave as an exercise to the reader an optimization to the below operations which is easily written in python but not here.
-				//Taking the below behavior, copy each of the padded rows into an offset for a 1d array.
-				//likewise, do the same with the transpose of the 2d.
-				//perform the convolution on the 1d for each, appropriately switching the filter size and the division.
-				//reverse the reshape back to the 2d, and for the transpose, re-transpose the product back.
-				//add the two together, dividing by two, then duplicate the first into the second.
-				//you now have the same behavior as below, but using a two 1d convolutional steps for each iteration,
-				//working over a much larger array, but with linear behavior that can automatically vectorize.
-				//copying is cheap on modern processors- convolutional optimization is more expensive.
-				//in python we already do this for the python version of the loop.
+			//now, we leave as an exercise to the reader an optimization to the below operations which is easily written in python but not here.
+			//Taking the below behavior, copy each of the padded rows into an offset for a 1d array.
+			//likewise, do the same with the transpose of the 2d.
+			//perform the convolution on the 1d for each, appropriately switching the filter size and the division.
+			//reverse the reshape back to the 2d, and for the transpose, re-transpose the product back.
+			//add the two together, dividing by two, then duplicate the first into the second.
+			//you now have the same behavior as below, but using a two 1d convolutional steps for each iteration,
+			//working over a much larger array, but with linear behavior that can automatically vectorize.
+			//copying is cheap on modern processors- convolutional optimization is more expensive.
+			//in python we already do this for the python version of the loop.
 
-				
-				for (int e = 0; e < 2; e++) {
 
-					//do first dimension first
+			for (int e = 0; e < 2; e++) {
 
-					for (int i = 0; i < 192+ TIME_PAD*2; i++) {//iterating over time
-						//each iteration, iterate through the working area + the padding area.
-						//start at zero, because our infill starts at 3, and therefore the padding area includes the area before.
-						// restrict by NBINS_last because too much would be overkill.
-						//at most this is the entire array, at the least, this is the padding and the filling.
+				//do first dimension first
 
-						frequencywise_storage.fill({ 0 }); //clear the working memory
+				for (int i = 0; i < 192 + TIME_PAD * 2; i++) {//iterating over time
+					//each iteration, iterate through the working area + the padding area.
+					//start at zero, because our infill starts at 3, and therefore the padding area includes the area before.
+					// restrict by NBINS_last because too much would be overkill.
+					//at most this is the entire array, at the least, this is the padding and the filling.
 
-						for (int j = 0; j < NBINS_last + FREQ_PAD*2; j++) {
-							//infill our temporary memory with the persistent padding and the data
-							frequencywise_storage[j] = vertical[j][i];
-						}
-						convolve_same_frequency(frequencywise_storage);
-						for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {
-							//infill our temporary memory with the persistent padding and the data
-							vertical[j][i] = frequencywise_storage[j]/13.0;
-						}
-					}
+					frequencywise_storage.fill({ 0 }); //clear the working memory
 
-					for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {//iterating over time
-						timewise_storage.fill({ 0 }); //clear the working memory
-
-					for (int i = 0; i < 192 + TIME_PAD * 2; i++) {
+					for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {
 						//infill our temporary memory with the persistent padding and the data
-						timewise_storage[i] = horizontal[j][i];
+						frequencywise_storage[j] = vertical[j][i];
 					}
-					convolve_same_time(timewise_storage);
-					for (int i = 0; i < 192 + TIME_PAD * 2; i++) {
+					convolve_same_frequency(frequencywise_storage);
+					for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {
 						//infill our temporary memory with the persistent padding and the data
-						horizontal[j][i] = timewise_storage[i] /3.0;
+						vertical[j][i] = frequencywise_storage[j] / 13.0f;
 					}
-				
+				}
+
+				for (int i = 0; i < NBINS_last + FREQ_PAD * 2; ++i) {
+					auto& row = horizontal[i];
+					convolve_same_time(row);
 				}
 
 
-					for (int i = 0; i < NBINS_last + FREQ_PAD * 2; i++) {
-						for (int j = 0; j < 192 + TIME_PAD * 2; j++) {
-							//apply the mask, conserving the padding
-							vertical[i][j] = (vertical[i][j] + horizontal[i][j]) / 2.0;
-							horizontal[i][j] = vertical[i][j];
 
-						}
-					}
 
-				}
-
-				for (int i = 0; i < NBINS_last; i++) {
-					for (int j = 0; j < 192; j++) {
-						//apply the smoothing, slicing out of our array
-						previous[i][j] = vertical[i + TIME_PAD][j + FREQ_PAD];
+				for (int i = 0; i < NBINS_last + FREQ_PAD * 2; i++) {
+					for (int j = 0; j < 192 + TIME_PAD * 2; j++) {
+						//apply the mask, conserving the padding
+						vertical[i][j] = (vertical[i][j] + horizontal[i][j]) / 2.0f;
+						horizontal[i][j] = vertical[i][j];
 
 					}
 				}
 
-
-				stft(audio_padded, shifted_hann_window, stft_complex);
-
-				for (int i = 0; i < NBINS_last; i++) {
-					for (int j = 0; j < 64; j++) {
-						//apply the mask
-						
-						stft_output[i][j] = stft_complex[i][j + 64] * previous[i][j + 64];
-					}
-				}
-
-				flag = 1; //update the flag because we are good to go
-				return  istft(stft_output);
 			}
 
-			if (flag == 1) {
-				// Compute product using the residual buffer since on the last round it contained data
+			for (int i = 0; i < NBINS_last; i++) {
+				for (int j = 0; j < 192; j++) {
+					//apply the smoothing, slicing out of our array
+					previous[i][j] = vertical[i + TIME_PAD][j + FREQ_PAD];
 
-				flag = 2; //update the flag since we processed zeros
-				return  istft(stft_output);
+				}
 			}
+
+
+			stft(audio_padded, shifted_hann_window, stft_complex);
+
+			for (int i = 0; i < NBINS_last; i++) {
+				for (int j = 0; j < 64; j++) {
+					//apply the mask
+
+					stft_output[i][j] = stft_complex[i][j + 64] * previous[i][j + 64];
+				}
+			}
+
+			flag = 0; //update the flag because we are good to go
+			return  istft(stft_output);
 		}
+
+		if (flag == 0) {
+			// Compute product using the residual buffer since on the last round it contained data
+
+			flag = 1; //update the flag since we processed zeros
+			return  istft(stft_output);
+		}
+
 		//in the final case, we no longer need to process a residual buffer,
 		//since the buffer was zeros on the last run, so no istft call is needed here.
 		// Return zero std::array
@@ -1092,7 +1100,7 @@ int main() {
 
 	clock_t start_time, end_time;
 	start_time = clock(); // get start time
-
+	
 	for (int i = 0; i < 20; i++) {
 		float sum = 0;
 		output = my_filter.process(demo); // execute the function
@@ -1110,6 +1118,11 @@ int main() {
 
 	return 0;
 }
+
+
+
+
+
 
 /*
 For the DLL, source code does not go in DLLmain
