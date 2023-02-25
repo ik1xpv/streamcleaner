@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Joshuah Rainstar
+Copyright 2023 Joshuah Rainstar joshuah.rainstar@gmail.com
 Permission is hereby granted, free of charge, to any person obtaining a copy of this softwareand associated documentation files(the "Software"),
 to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 and /or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions :
@@ -33,6 +33,42 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 * entropy now behaves like the python.
 * as far as I can tell, everything will and should act like the python *except* the inverse short time fourier transform(overlapping).
 * as a result, we are now shipping this as 1.0 despite it not being identical or even similar.
+*
+*
+*Instructions to future developers:
+*I may not be alive forever. If I die, or stop developing on this work, anyone is free and welcome to fork it, extend it, enhance it, fix it.
+*My next set of steps I plan(ned) to take are the following:
+* #1: write a helper function that processes 1 last set of bins and then discards the buffer and the stft and changes the sample rate settings.
+* the STFT and ISTFT should be generalized so that, as long as N_FFT is 512 and hop_len is 1/4th N_FFT, a variety of rates are able to be used:
+* 48, 24, 12, and 6. Even 96, at least in theory, could be considered although that would be pointless.
+* NBINS only works well when considering at least 32 and at most 40. Beyond 38, the algorithm has not been tested.
+* Specifically it is the logistic function comparison and the statistical error of this comparison which must be considered.
+* Less than about 30 and we really cannot be sure of anything. The more, the better.
+* For extra wide signal its less of an issue, but the statistical aspects are less likely to be satisfactory.
+* We process only in discrete chunks so this should not be too painful.
+* #2:  Revise the process to produce 32 time-bins at a time, so that 96 are considered in each iteration of process instead of 192.
+* The same will also be true of a bunch of other logic, like the entropy computation.
+* #3: extend the safety checking, documentation, and useful/helpful error outputs to cover all cases
+* #4: make the implementation `freestanding` so that it can be utilized on hardware without a computer, as a module of some dedicated SDR software.
+* #5: implement a testbed program for a le potato with an audio HAT so that people can make a $50 denoising dsp.
+* in my concept for it, it should have one wheel to control the entropy setting and another wheel to control gain.
+* #6: get the program as a noise processing library on PIP and provide binaries for use along with wrapper in python.
+* This will allow comparing it to the original, so that further research in python(where it's a lot faster to prototype and see the results) can happen.
+* #7: convert the whole thing with webassembly or some other library so that it can be used on openwebrx and websdr
+* 
+* Other untested but well considered experiments:
+* instead of considering 1 segment at a time for entropy, lumping them together to decimate across time but have a more realistic estimate, and then smoothing
+* Perhaps decimating to three. If we do this, even with a quite small N_BINS for each row, we have enough samples for a decent logistic evaluation.
+*
+*
+* 
+* 
+* 
+* 
+* 
+* 
+* 
+* 
 * 
 */
 
