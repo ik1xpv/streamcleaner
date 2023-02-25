@@ -1006,7 +1006,7 @@ public:
 				NBINS_1 = val;
 			}
 			else {
-				std::cout << "bandpass limit  was corrected to " << (hop_size * 2) + 1) << " bandpass greater than hop size*2 + 1 not allowed" << std::endl;
+				std::cout << "bandpass limit  was corrected to " << ((hop_size * 2) + 1) << " bandpass greater than hop size*2 + 1 not allowed" << std::endl;
 				NBINS_1 = ((hop_size * 2) + 1);
 			}
 		}
