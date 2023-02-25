@@ -121,7 +121,7 @@ private:
 
 
 	float t = 0, initial = 0, multiplier = 0, MAXIMUM = 0.612217f, constant_temp = 0, test = 0, thresh1 = 0.0f;
-	int flag = 0, count = 0;
+	int flag = 0, count = 0, sample_rate = 48000, N_FFT = 512, hop_size = 128;
 	float CONST_1 = 0.057f, CONST_last = 0.057f;
 	int NBINS_1 = 37, NBINS_last = 0;
 	static constexpr int TIME_PAD = 13;
@@ -978,6 +978,7 @@ private:
 		}
 	}
 
+
 public:
 
 	~Filter()
@@ -1000,8 +1001,51 @@ public:
 	/// </summary>
 	/// <param name="val"></param>
 	void set_NBINS(int val) {
-		NBINS_1 = val;
+		if (val > 0) {
+			if (val < (hop_size * 2) + 2) {
+				NBINS_1 = val;
+			}
+			else {
+				std::cout << "bandpass limit  was corrected to " << (hop_size * 2) + 1) << " bandpass greater than hop size*2 + 1 not allowed" << std::endl;
+				NBINS_1 = ((hop_size * 2) + 1);
+			}
+		}
 	}
+
+	void setSampleRate(int val) {
+		int flag = 1;
+		// Check if the given value is one of the supported sample rates.
+		if (val == 6000 || val == 12000 || val == 24000 || val == 48000) {
+			flag = 0;
+		}
+		
+			// Round up to the nearest supported sample rate, if necessary, and set the settings.
+		if (val < 6001) {
+				sample_rate = 6000;
+				N_FFT = 64;
+				hop_size = 32;
+			}
+		else if (val < 12001) {
+				sample_rate = 12000;
+				N_FFT = 128;
+				hop_size = 64;
+			}
+		else if (val < 24001) {
+				sample_rate = 24000;
+				N_FFT = 256;
+				hop_size = 128;
+			}
+		else {
+				sample_rate = 48000;
+				N_FFT = 512;
+				hop_size = 128;
+			}
+		if (flag == 1) {
+			std::cout << "Sample rate was corrected to " << sample_rate << ", sample rates not a divisor of 48k greater than 3k not supported" << std::endl;
+
+		}
+	}
+
 
 	//TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
 
@@ -1017,7 +1061,9 @@ public:
 
 		if (NBINS_1 != NBINS_last) {//same thing for nbins- only considered once per cycle
 			if (NBINS_1 > 257) { NBINS_1 = 257; }//make sure sane inputs
-			if (NBINS_1 < 5) { NBINS_1 = 5; }//you cant use less than 5 bins!
+			if (NBINS_1 < 5) {
+				std::cout << "bandpass limit  was corrected to 5 bands , bandpass less  than 5 not allowed" << std::endl;
+				NBINS_1 = 5; }//you cant use less than 5 bins!
 			if (NBINS_1 == 37) {//let's fill the std::array
 				NBINS_last = NBINS_1;
 				std::copy(std::begin(logit_37), std::end(logit_37), std::begin(logit_distribution));
