@@ -39,12 +39,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 //https://stackoverflow.com/questions/39675436/how-to-get-fftw-working-on-windows-for-dummies
 //http://ftp.fftw.org/install/windows.html
-//notes:
+//Usage Instructions:
 //for visual studio 2017 onwards:
-//generate the .lib for the fftw3f.
-//on the right, you'll notice the folder hierarchy for the solution.
+//generate the .lib for fftw3f.
+//on the right, in visual studio, you'll notice a visual folder hierarchy for the solution.
 //right click and add - the correct header to the headers, the .lib to the libraries.
-//should just compile, then copy the dll appropriately.
+//should just compile, then copy the fftw3f dll to the output folder.
+//NOTE : If this is for a DLL, you must remove the .main function.
+//Note: linux is not supported, any linux headers included are simply for linux developer's convenience.
 
 
 
@@ -59,13 +61,34 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 
+#if defined(_MSC_VER)
+	//  Microsoft 
+#define EXPORT __declspec(dllexport)
+#define IMPORT __declspec(dllimport)
+#elif defined(__GNUC__)
+	//  GCC
+#define EXPORT __attribute__((visibility("default")))
+#define IMPORT
+#else
+	//  do nothing and hope for the best?
+#define EXPORT
+#define IMPORT
+#pragma warning Unknown dynamic link import/export semantics.
+#endif
 
+//TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
+
+
+//export our functions
+EXPORT void setConstant(float val);
+EXPORT void set_NBINS(int val);
+EXPORT std::array<float, 8192> process(std::array<float, 8192> input);
 
 
 # define M_PI           3.14159265358979323846  /* pi */
 
 //class __declspec(dllexport) Filter for use only in dll
-class Filter
+class EXPORT Filter
 {
 private:
 
@@ -135,7 +158,7 @@ private:
 
 		// Remove NaN values from arr
 		for (int i = 0; i < NBINS_last; i++) {
-			if (!isnan(data[i])) {
+			if (!std::isnan(data[i])) {
 				arr[n] = data[i];
 				n++;
 			}
@@ -147,24 +170,24 @@ private:
 		}
 
 		// Compute the median of arr
-		sort(arr.begin(), arr.begin() + n);
+		std::sort(arr.begin(), arr.begin() + n);
 		float t = (n % 2 == 0) ? (arr[n / 2] + arr[(n / 2) - 1]) / 2.0f : arr[n / 2];
 
 		// Compute the median of the absolute difference between arr and t
 		std::array<float, 257> non_zero_diff;
 		for (int i = 0; i < n; i++) {
-			non_zero_diff[i] = abs(arr[i] - t);
+			non_zero_diff[i] = std::abs(arr[i] - t);
 		}
-		sort(non_zero_diff.begin(), non_zero_diff.begin() + n);
+		std::sort(non_zero_diff.begin(), non_zero_diff.begin() + n);
 		float e = (n % 2 == 0) ? (non_zero_diff[n / 2] + non_zero_diff[(n / 2) - 1]) / 2.0f : non_zero_diff[n / 2];
 
 		// Compute the square root of the mean of the squared absolute deviation from e
 		float sum_x = 0.0f;
 		for (int i = 0; i < n; i++) {
-			float abs_diff = abs(arr[i] - e);
+			float abs_diff = std::abs(arr[i] - e);
 			sum_x += abs_diff * abs_diff;
 		}
-		float a = sqrt(sum_x / n);
+		float a = std::sqrt(sum_x / n);
 
 		return a;
 	}
@@ -183,7 +206,7 @@ private:
 			for (int i = 0; i < 192; i++) {
 				float val = data[j][i];
 				if (val != 0.0f) {
-					median += abs(val);
+					median += std::abs(val);
 					count++;
 				}
 			}
@@ -200,8 +223,8 @@ private:
 		for (int j = 0; j < NBINS_last; j++) {
 			for (int i = 0; i < 192; i++) {
 				float val = data[j][i];
-				if (!isnan(val) && isfinite(val)) {
-					float diff = abs(val - median);
+				if (!std::isnan(val) && std::isfinite(val)) {
+					float diff = std::abs(val - median);
 					sum += diff * diff;
 					n++;
 				}
@@ -211,7 +234,7 @@ private:
 			threshold = 0.0f;
 			return;
 		}
-		threshold = sqrt(sum / n) + median;
+		threshold = std::sqrt(sum / n) + median;
 	}
 
 
@@ -239,14 +262,14 @@ private:
 	/// <param name="Y"></param>
 	/// <returns></returns>
 	inline float correlationCoefficient(const std::array<float, 257>& X, const std::array<float, 257>& Y) {
-		float sum_X = accumulate(X.begin(), X.begin() + NBINS_last, 0.0f);
-		float sum_Y = accumulate(Y.begin(), Y.begin() + NBINS_last, 0.0f);
-		float sum_XY = inner_product(X.begin(), X.begin() + NBINS_last, Y.begin(), 0.0f);
-		float squareSum_X = inner_product(X.begin(), X.begin() + NBINS_last, X.begin(), 0.0f);
-		float squareSum_Y = inner_product(Y.begin(), Y.begin() + NBINS_last, Y.begin(), 0.0f);
+		float sum_X = std::accumulate(X.begin(), X.begin() + NBINS_last, 0.0f);
+		float sum_Y = std::accumulate(Y.begin(), Y.begin() + NBINS_last, 0.0f);
+		float sum_XY = std::inner_product(X.begin(), X.begin() + NBINS_last, Y.begin(), 0.0f);
+		float squareSum_X = std::inner_product(X.begin(), X.begin() + NBINS_last, X.begin(), 0.0f);
+		float squareSum_Y = std::inner_product(Y.begin(), Y.begin() + NBINS_last, Y.begin(), 0.0f);
 
 		float corr = (NBINS_last * sum_XY - sum_X * sum_Y) /
-			sqrt((NBINS_last * squareSum_X - sum_X * sum_X) *
+			std::sqrt((NBINS_last * squareSum_X - sum_X * sum_X) *
 				(NBINS_last * squareSum_Y - sum_Y * sum_Y));
 
 		return corr;
@@ -308,7 +331,7 @@ private:
 				temp_257[j] = data[j][i];
 			}
 			// Create a subset of the first NBINS elements of d and sort it
-			sort(temp_257.begin(), temp_257.begin() + NBINS_last);
+			std::sort(temp_257.begin(), temp_257.begin() + NBINS_last);
 
 			float dx = temp_257[NBINS_last - 1] - temp_257[0];
 			for (int j = 0; j < NBINS_last; j++) {
@@ -316,7 +339,7 @@ private:
 			}
 
 			float v = correlationCoefficient(temp_257, logit_distribution);
-			if (isnan(v)) {
+			if (std::isnan(v)) {
 				entropy_unmasked[i] = 0.0f;
 			}
 			else {
@@ -350,9 +373,9 @@ private:
 			}
 			constant_temp = MAN(temp_257);
 			test = entropy_smoothed[each] / MAXIMUM;
-			test = abs(test - 1);
+			test = std::abs(test - 1);
 			thresh1 = (t * test);
-			if (!isnan(thresh1)) {
+			if (!std::isnan(thresh1)) {
 				constant_temp = (thresh1 + constant_temp) / 2; //catch errors
 			}
 			//set the masking values
@@ -1030,7 +1053,7 @@ public:
 		// Copy the first 37 rows of stft_complex to stft_real
 		for (int i = 0; i < NBINS_last; i++) {
 			for (int j = 0; j < 192; j++) {
-				stft_real[i][j] = abs(stft_complex[i][j]);
+				stft_real[i][j] = std::abs(stft_complex[i][j]);
 			}
 		}
 
