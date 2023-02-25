@@ -27,11 +27,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 /*
-* Cleanup. CPP version 0.14 2/25/23
+* Cleanup. CPP version 1.10 2/25/23
 * all work has been revised and is becoming close(r) to correct.
 * convolution is now 100% guaranteed to behave like the python.
 * entropy now behaves like the python.
 * as far as I can tell, everything will and should act like the python *except* the inverse short time fourier transform(overlapping).
+* as a result, we are now shipping this as 1.0 despite it not being identical or even similar.
+* 
 */
 
 
@@ -371,13 +373,10 @@ private:
 
 	void stft(std::array<float, 25087>& xp, const std::array<float, 512>& window, std::array<std::array<std::complex<float>, 192>, 257>& out) {
 
-		// Initialize Sx_temp to all zeros
+	
 		int n_fft = 512;
 		int hop_len = 128;
 
-		int seg_len = n_fft;
-		int n_overlap = n_fft - hop_len;
-		hop_len = seg_len - n_overlap;
 		int n_segs = 192;
 		int s20 = 256;
 
@@ -389,11 +388,13 @@ private:
 				temp_512[j] = xp[start1 + j];
 			}
 			for (int j = s20; j < n_fft; j++) {
-				temp_512[j] = xp[start0 + j - s20];
+				temp_512[j] = xp[start0 + j];
 			}
 			for (int j = 0; j < 512; j++) {
 				temp_512[j] = temp_512[j] * window[j];
+				
 			}
+
 			fftwf_execute(plan_forward);
 
 			for (int e = 0; e < 257; e++) {
@@ -405,6 +406,8 @@ private:
 
 
 	static constexpr int NUM_ISTFT_FREQUENCIES = 512;
+
+
 	fftwf_plan plan_reverse = fftwf_plan_dft_c2r_1d(NUM_ISTFT_FREQUENCIES, reinterpret_cast<fftwf_complex*>(temp_complex.data()), temp_512.data(), FFTW_ESTIMATE);
 
 	std::array<float, 8192> istft(std::array<std::array<std::complex<float>, 64>, 257>& Sx) {
@@ -413,37 +416,37 @@ private:
 		for (int i = 0; i < 64; i++) {
 			// Perform irfft irfft
 			temp_complex.fill({ 0 }); //clear  values
-			for (int n = 0; n < 257; n++) {//only need first 256 elements here- if chatgpt is right
+			for (int n = 0; n < 257; n++) {
 				temp_complex[n] = Sx[n][i];
 			}
 			fftwf_execute(plan_reverse); 
 
 			// Perform FFT shift for a fixed size 
 
-			for (int i = 0; i < 256; i++) {
-				std::swap(temp_512[i], temp_512[i + 256]);
+			for (int j = 0;j < 256 ; j++) {
+				std::swap(temp_512[j], temp_512[j + 256]);
 			}
 
-			for (int j = 0; j < 512; ++j) {
+			for (int j = 0; j < 512; j++) {
 				temp_512[j] = temp_512[j] * synthesis_window[j];
 			}
-			for (int j = 0; j < 128; ++j) {
+			for (int j = 0; j < 128; j++) {
 				temp_128[j] = temp_512[j];
 			}
-			for (int j = 0; j < 128; ++j) {
+			for (int j = 0; j < 128; j++) {
 				temp_128[j] += buffer[j];
 			}
 			// update state variables
-			for (int j = 0; j < 256; ++j) {//shift buffer to left 128 values
+			for (int j = 0; j < 256; j++) {//shift buffer to left 128 values
 				buffer[j] = buffer[j + 128];
 			}
-			for (int j = 0; j < 128; ++j) {
+			for (int j = 0; j < 128; j++) {
 				buffer[j + 256] = 0.0; //clear the last 128 elements
 			}
-			for (int j = 0; j < 384; ++j) {
+			for (int j = 0; j < 384; j++) {
 				buffer[j] += temp_512[j + 128];
 			}
-			for (int j = 0; j < 128; ++j) {
+			for (int j = 0; j < 128; j++) {
 				output[(i * 128) + j] = temp_128[j];
 			}
 		}
@@ -1100,28 +1103,14 @@ int main() {
 	Filter my_filter;
 	std::array<float, 8192> demo = { 0 };
 	generate_sine_wave(demo, 440.0f, 0.0f, 1.0f);
-	generate_sine_wave(demo, 880.0f, M_PI_2, 0.5f);
-	generate_sine_wave(demo, 1320.0f, M_PI_4, 0.25f);
 	std::array<float, 8192> output = { 0 };
 
 	clock_t start_time, end_time;
 	start_time = clock(); // get start time
 	
-	for (int i = 0; i < 4; i++) {
-		float sum = 0;
+	for (int i = 0; i < 20; i++) {
 		output = my_filter.process(demo); // execute the function
-		std::cout << " [ "  <<output[0] <<" , " << output[1] << " , " << output[2] << " ... " << output[-3] << " , " << output[-2] << " , " << output[-1] << " ] "  << std::endl;
-		}
-
-		/*
-		the python settles to hystersis within 4 iterations.
-		[0.         0.         0.         ... 0.00022068 0.00025308 0.00028352]
-		[ 3.11329019e-04  3.36667653e-04  3.59862530e-04 ... -8.63344739e-01 -8.87012788e-01 -9.07297325e-01]
-		[-0.92383476 -0.93624417 -0.94413718 ... -0.90146189 -0.92439354 -0.94330171]
-		[-0.95786731 -0.96776962 -0.97269424 ... -0.90146189 -0.92439354 -0.94330171]
-		
-		
-		*/
+	}
 
 	end_time = clock(); // get end time
 	float duration = (float)(end_time - start_time) / CLOCKS_PER_SEC * 1000.0; // calculate duration in milliseconds
