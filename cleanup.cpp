@@ -62,7 +62,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 *
 *
 * 
-* 
+* Other issues I have not considered myself able to solve at the moment, that need a high level of consideration: 
+* the STFT function utilizes reflected padding, as in processing discrete chunks. This may be undesirable behavior for streaming.
+* it may be better simply not to pad at all, since this is a streaming implementation.
+* John(OverLordGoldDragon) who wrote the ssqueezepy library might be consulted, as this is an adaption of his work for our use.
 * 
 * 
 * 
