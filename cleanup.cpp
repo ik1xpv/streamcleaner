@@ -27,13 +27,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 
 
 /*
-* Cleanup. CPP version 0.13 2/25/23
+* Cleanup. CPP version 0.14 2/25/23
 * all work has been revised and is becoming close(r) to correct.
 * convolution is now 100% guaranteed to behave like the python.
 * entropy now behaves like the python.
-* 
-* all functions have been modified to make them work as closely to the python as possible.
-* however, it's still not behaving like the python.. yet.
+* as far as I can tell, everything will and should act like the python *except* the inverse short time fourier transform(overlapping).
 */
 
 
@@ -98,7 +96,7 @@ private:
 
 
 	float t = 0, initial = 0, multiplier = 0, MAXIMUM = 0.612217f, constant_temp = 0, test = 0, thresh1 = 0.0f;
-	int flag = 0, count = 0, truecount = 0;
+	int flag = 0, count = 0;
 	float CONST_1 = 0.057f, CONST_last = 0.057f;
 	int NBINS_1 = 37, NBINS_last = 0;
 	static constexpr int TIME_PAD = 13;
@@ -399,7 +397,8 @@ private:
 			fftwf_execute(plan_forward);
 
 			for (int e = 0; e < 257; e++) {
-				out[e][i] = temp_complex[e] /512.0f; //normalize to numpy 
+				out[e][i] = temp_complex[e] /512.0f; //normalize to numpy, since internally we like to process using numpy normalized data.
+													//this follows numpy's convention of fct = 1/512.
 			}
 		}
 	}
@@ -413,10 +412,11 @@ private:
 		// Reuse temp, eliminate xbuf
 		for (int i = 0; i < 64; i++) {
 			// Perform irfft irfft
+			temp_complex.fill({ 0 }); //clear  values
 			for (int n = 0; n < 257; n++) {//only need first 256 elements here- if chatgpt is right
 				temp_complex[n] = Sx[n][i];
 			}
-			fftwf_execute(plan_reverse);
+			fftwf_execute(plan_reverse); 
 
 			// Perform FFT shift for a fixed size 
 
@@ -809,7 +809,6 @@ private:
 			}
 		}
 
-		std::cout << ent_max << std::endl;
 
 
 		for (int i = 0; i < 192; i++) {
@@ -820,7 +819,6 @@ private:
 				}
 			}
 		}
-		std::cout << count << std::endl;
 
 		if ((count > 22 || longestConsecutive(entropy_thresholded) > 16)) {
 			flag = 2;
@@ -1048,7 +1046,7 @@ public:
 				for (int j = 0; j < 64; j++) {
 					//apply the mask
 
-					stft_output[i][j] = stft_complex[i][j + 63] * 512.0f;//normalize to what fftw expects
+					stft_output[i][j] = stft_complex[i][j + 63] * 512.0f;//normalize to what fftw expects - needs to match the input normalization!
 					stft_output[i][j] = stft_output[i][j] * previous[i][j + 63];
 				}
 			}
@@ -1109,14 +1107,21 @@ int main() {
 	clock_t start_time, end_time;
 	start_time = clock(); // get start time
 	
-	for (int i = 0; i < 20; i++) {
+	for (int i = 0; i < 4; i++) {
 		float sum = 0;
 		output = my_filter.process(demo); // execute the function
-		for (int i = 0; i < 8192; i++) {
-			sum = sum + abs(output[i]);
+		std::cout << " [ "  <<output[0] <<" , " << output[1] << " , " << output[2] << " ... " << output[-3] << " , " << output[-2] << " , " << output[-1] << " ] "  << std::endl;
 		}
-		std::cout << "Total value " << sum << std::endl;
-	}
+
+		/*
+		the python settles to hystersis within 4 iterations.
+		[0.         0.         0.         ... 0.00022068 0.00025308 0.00028352]
+		[ 3.11329019e-04  3.36667653e-04  3.59862530e-04 ... -8.63344739e-01 -8.87012788e-01 -9.07297325e-01]
+		[-0.92383476 -0.93624417 -0.94413718 ... -0.90146189 -0.92439354 -0.94330171]
+		[-0.95786731 -0.96776962 -0.97269424 ... -0.90146189 -0.92439354 -0.94330171]
+		
+		
+		*/
 
 	end_time = clock(); // get end time
 	float duration = (float)(end_time - start_time) / CLOCKS_PER_SEC * 1000.0; // calculate duration in milliseconds
