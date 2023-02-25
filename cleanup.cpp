@@ -30,7 +30,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 * Cleanup. CPP version 0.13 2/25/23
 * all work has been revised and is becoming close(r) to correct.
 * convolution is now 100% guaranteed to behave like the python.
-* as an additional bonus, we are slightly faster than before.
+* entropy now behaves like the python.
+* 
 * all functions have been modified to make them work as closely to the python as possible.
 * however, it's still not behaving like the python.. yet.
 */
@@ -96,9 +97,9 @@ private:
 	std::array<float, 8192> empty = { 0 };//just a bunch of zeros
 
 
-	float t = 0, initial = 0, multiplier = 0, MAXIMUM = 0.6122169028112414, constant_temp = 0, test = 0, thresh1 = 0.0;
+	float t = 0, initial = 0, multiplier = 0, MAXIMUM = 0.612217f, constant_temp = 0, test = 0, thresh1 = 0.0f;
 	int flag = 0, count = 0, truecount = 0;
-	float CONST_1 = 0.057, CONST_last = 0.057;
+	float CONST_1 = 0.057f, CONST_last = 0.057f;
 	int NBINS_1 = 37, NBINS_last = 0;
 	static constexpr int TIME_PAD = 13;
 	static constexpr int FREQ_PAD = 3;
@@ -142,7 +143,7 @@ private:
 
 		// If v is empty, return 0.0 early
 		if (n == 0) {
-			return 0.0;
+			return 0.0f;
 		}
 
 		// Compute the median of arr
@@ -158,7 +159,7 @@ private:
 		float e = (n % 2 == 0) ? (non_zero_diff[n / 2] + non_zero_diff[(n / 2) - 1]) / 2.0f : non_zero_diff[n / 2];
 
 		// Compute the square root of the mean of the squared absolute deviation from e
-		float sum_x = 0.0;
+		float sum_x = 0.0f;
 		for (int i = 0; i < n; i++) {
 			float abs_diff = abs(arr[i] - e);
 			sum_x += abs_diff * abs_diff;
@@ -176,25 +177,25 @@ private:
 	/// <param name="threshold"></param>
 	inline void threshold(std::array<std::array<float, 192>, 257>& data, float& threshold) {
 		// Compute the median of the absolute values of the non-zero elements
-		float median = 0.0;
+		float median = 0.0f;
 		int count = 0;
 		for (int j = 0; j < NBINS_last; j++) {
 			for (int i = 0; i < 192; i++) {
 				float val = data[j][i];
-				if (val != 0.0) {
+				if (val != 0.0f) {
 					median += abs(val);
 					count++;
 				}
 			}
 		}
 		if (count == 0) {
-			threshold = 0.0;
+			threshold = 0.0f;
 			return;
 		}
 		median /= count;
 
 		// Compute the threshold using the formula from the original implementation
-		float sum = 0.0;
+		float sum = 0.0f;
 		int n = 0;
 		for (int j = 0; j < NBINS_last; j++) {
 			for (int i = 0; i < 192; i++) {
@@ -207,7 +208,7 @@ private:
 			}
 		}
 		if (n == 0) {
-			threshold = 0.0;
+			threshold = 0.0f;
 			return;
 		}
 		threshold = sqrt(sum / n) + median;
@@ -398,7 +399,7 @@ private:
 			fftwf_execute(plan_forward);
 
 			for (int e = 0; e < 257; e++) {
-				out[e][i] = temp_complex[e];
+				out[e][i] = temp_complex[e] /512.0f; //normalize to numpy 
 			}
 		}
 	}
@@ -422,6 +423,7 @@ private:
 			for (int i = 0; i < 256; i++) {
 				std::swap(temp_512[i], temp_512[i + 256]);
 			}
+
 			for (int j = 0; j < 512; ++j) {
 				temp_512[j] = temp_512[j] * synthesis_window[j];
 			}
@@ -566,7 +568,7 @@ private:
 		convolve_same_entropy(padded);
 
 		for (int i = PADDING_SIZE; i < INPUT_SIZE + PADDING_SIZE; i++) {
-			out[i - PADDING_SIZE] = padded[i];
+			out[i - PADDING_SIZE] = padded[i]/3.0f;
 		}
 	}
 	
@@ -813,21 +815,143 @@ private:
 		for (int i = 0; i < 192; i++) {
 			if (entropy_smoothed[i] > CONST_last) {
 				entropy_thresholded[i] = 1;
-				if ((i > 30) && (i < 160)) { //same thing as numpy slice of [32:128+32]
+				if ((i > 30) && (i < 160)) { //same thing as numpy slice of [32:128+32].. right?
 					count++;
-					truecount++;
 				}
 			}
 		}
 		std::cout << count << std::endl;
 
-		if ((count > 0) && (truecount > 22 || longestConsecutive(entropy_thresholded) > 16)) {
+		if ((count > 22 || longestConsecutive(entropy_thresholded) > 16)) {
 			flag = 2;
 			remove_outliers(entropy_thresholded, 0, 6, 1);
 			remove_outliers(entropy_thresholded, 1, 2, 0);
 		}
-		truecount = 0;
 		count = 0;
+	}
+
+	inline void smooth_and_mask() {
+
+
+
+		sawtooth_convolve(stft_real, smoothed);
+
+
+		// Transpose data into scratch
+
+
+		fast_peaks(smoothed, previous);
+
+		for (int i = 0; i < NBINS_last; i++) {
+			for (int j = 0; j < 192; j++) {
+				if (previous[i][j] == 0) {
+					stft_real[i][j] = 0.0;
+				}
+			}
+		}
+
+		find_max(stft_real, multiplier);
+		multiplier = multiplier / initial;
+		if (multiplier > 1) { multiplier = 1; }
+
+
+		sawtooth_convolve(stft_real, smoothed);
+
+
+		fast_peaks(smoothed, smoothed);
+
+		for (int i = 0; i < NBINS_last; i++) {
+			for (int j = 0; j < 192; j++) {
+				initial = smoothed[i][j] * multiplier;
+				if (previous[i][j] > initial) {
+					previous[i][j] = initial;
+				}
+			}
+		}
+
+		sawtooth_convolve(previous, previous);
+
+
+
+		vertical.fill({ 0 }); //clear corner padding
+		horizontal.fill({ 0 });
+
+		for (int i = 0; i < NBINS_last; i++) {
+			for (int j = 0; j < 192; j++) {
+				//apply the mask
+				//remember that we include padding at both ends of filter size for intermediate products.
+				vertical[i + FREQ_PAD][j + TIME_PAD] = previous[i][j];
+				horizontal[i + FREQ_PAD][j + TIME_PAD] = previous[i][j];
+
+			}
+		}
+
+
+		//perform iterative 2d smoothing.
+
+
+
+		//now, we leave as an exercise to the reader an optimization to the below operations which is easily written in python but not here.
+		//Taking the below behavior, copy each of the padded rows into an offset for a 1d array.
+		//likewise, do the same with the transpose of the 2d.
+		//perform the convolution on the 1d for each, appropriately switching the filter size and the division.
+		//reverse the reshape back to the 2d, and for the transpose, re-transpose the product back.
+		//add the two together, dividing by two, then duplicate the first into the second.
+		//you now have the same behavior as below, but using a two 1d convolutional steps for each iteration,
+		//working over a much larger array, but with linear behavior that can automatically vectorize.
+		//copying is cheap on modern processors- convolutional optimization is more expensive.
+		//in python we already do this for the python version of the loop.
+
+
+		for (int e = 0; e < 2; e++) {
+
+			//do first dimension first
+
+			for (int i = 0; i < 192 + TIME_PAD * 2; i++) {//iterating over time
+				//each iteration, iterate through the working area + the padding area.
+				//start at zero, because our infill starts at 3, and therefore the padding area includes the area before.
+				// restrict by NBINS_last because too much would be overkill.
+				//at most this is the entire array, at the least, this is the padding and the filling.
+
+				frequencywise_storage.fill({ 0 }); //clear the working memory
+
+				for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {
+					//infill our temporary memory with the persistent padding and the data
+					frequencywise_storage[j] = vertical[j][i];
+				}
+				convolve_same_frequency(frequencywise_storage);
+				for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {
+					//infill our temporary memory with the persistent padding and the data
+					vertical[j][i] = frequencywise_storage[j] / 13.0f;
+				}
+			}
+
+			for (int i = 0; i < NBINS_last + FREQ_PAD * 2; ++i) {
+				auto& row = horizontal[i];
+				convolve_same_time(row);
+			}
+
+
+
+
+			for (int i = 0; i < NBINS_last + FREQ_PAD * 2; i++) {
+				for (int j = 0; j < 192 + TIME_PAD * 2; j++) {
+					//apply the mask, conserving the padding
+					vertical[i][j] = (vertical[i][j] + horizontal[i][j]) / 2.0f;
+					horizontal[i][j] = vertical[i][j];
+
+				}
+			}
+
+		}
+
+		for (int i = 0; i < NBINS_last; i++) {
+			for (int j = 0; j < 192; j++) {
+				//apply the smoothing, slicing out of our array
+				previous[i][j] = vertical[i + TIME_PAD][j + FREQ_PAD];
+
+			}
+		}
 	}
 
 public:
@@ -873,7 +997,7 @@ public:
 			if (NBINS_1 == 37) {//let's fill the std::array
 				NBINS_last = NBINS_1;
 				std::copy(std::begin(logit_37), std::end(logit_37), std::begin(logit_distribution));
-				MAXIMUM = 0.6122169028112414;
+				MAXIMUM = 0.6122167f;
 			}
 			else {
 				//generate and set logit, entropy maximum
@@ -915,124 +1039,7 @@ public:
 			threshold(stft_real, t);
 			find_max(stft_real, initial);
 
-			sawtooth_convolve(stft_real, smoothed);
-
-
-			// Transpose data into scratch
-
-
-			fast_peaks(smoothed, previous);
-
-			for (int i = 0; i < NBINS_last; i++) {
-				for (int j = 0; j < 192; j++) {
-					if (previous[i][j] == 0) {
-						stft_real[i][j] = 0.0;
-					}
-				}
-			}
-
-			find_max(stft_real, multiplier);
-			multiplier = multiplier / initial;
-			if (multiplier > 1) { multiplier = 1; }
-
-
-			sawtooth_convolve(stft_real, smoothed);
-
-
-			fast_peaks(smoothed, smoothed);
-
-			for (int i = 0; i < NBINS_last; i++) {
-				for (int j = 0; j < 192; j++) {
-					initial = smoothed[i][j] * multiplier;
-					if (previous[i][j] > initial) {
-						previous[i][j] = initial;
-					}
-				}
-			}
-
-			sawtooth_convolve(previous, previous);
-
-
-
-			vertical.fill({ 0 }); //clear corner padding
-			horizontal.fill({ 0 });
-
-			for (int i = 0; i < NBINS_last; i++) {
-				for (int j = 0; j < 192; j++) {
-					//apply the mask
-					//remember that we include padding at both ends of filter size for intermediate products.
-					vertical[i + FREQ_PAD][j + TIME_PAD] = previous[i][j];
-					horizontal[i + FREQ_PAD][j + TIME_PAD] = previous[i][j];
-
-				}
-			}
-
-
-			//perform iterative 2d smoothing.
-
-
-
-			//now, we leave as an exercise to the reader an optimization to the below operations which is easily written in python but not here.
-			//Taking the below behavior, copy each of the padded rows into an offset for a 1d array.
-			//likewise, do the same with the transpose of the 2d.
-			//perform the convolution on the 1d for each, appropriately switching the filter size and the division.
-			//reverse the reshape back to the 2d, and for the transpose, re-transpose the product back.
-			//add the two together, dividing by two, then duplicate the first into the second.
-			//you now have the same behavior as below, but using a two 1d convolutional steps for each iteration,
-			//working over a much larger array, but with linear behavior that can automatically vectorize.
-			//copying is cheap on modern processors- convolutional optimization is more expensive.
-			//in python we already do this for the python version of the loop.
-
-
-			for (int e = 0; e < 2; e++) {
-
-				//do first dimension first
-
-				for (int i = 0; i < 192 + TIME_PAD * 2; i++) {//iterating over time
-					//each iteration, iterate through the working area + the padding area.
-					//start at zero, because our infill starts at 3, and therefore the padding area includes the area before.
-					// restrict by NBINS_last because too much would be overkill.
-					//at most this is the entire array, at the least, this is the padding and the filling.
-
-					frequencywise_storage.fill({ 0 }); //clear the working memory
-
-					for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {
-						//infill our temporary memory with the persistent padding and the data
-						frequencywise_storage[j] = vertical[j][i];
-					}
-					convolve_same_frequency(frequencywise_storage);
-					for (int j = 0; j < NBINS_last + FREQ_PAD * 2; j++) {
-						//infill our temporary memory with the persistent padding and the data
-						vertical[j][i] = frequencywise_storage[j] / 13.0f;
-					}
-				}
-
-				for (int i = 0; i < NBINS_last + FREQ_PAD * 2; ++i) {
-					auto& row = horizontal[i];
-					convolve_same_time(row);
-				}
-
-
-
-
-				for (int i = 0; i < NBINS_last + FREQ_PAD * 2; i++) {
-					for (int j = 0; j < 192 + TIME_PAD * 2; j++) {
-						//apply the mask, conserving the padding
-						vertical[i][j] = (vertical[i][j] + horizontal[i][j]) / 2.0f;
-						horizontal[i][j] = vertical[i][j];
-
-					}
-				}
-
-			}
-
-			for (int i = 0; i < NBINS_last; i++) {
-				for (int j = 0; j < 192; j++) {
-					//apply the smoothing, slicing out of our array
-					previous[i][j] = vertical[i + TIME_PAD][j + FREQ_PAD];
-
-				}
-			}
+			smooth_and_mask();
 
 
 			stft(audio_padded, shifted_hann_window, stft_complex);
@@ -1041,7 +1048,8 @@ public:
 				for (int j = 0; j < 64; j++) {
 					//apply the mask
 
-					stft_output[i][j] = stft_complex[i][j + 64] * previous[i][j + 64];
+					stft_output[i][j] = stft_complex[i][j + 63] * 512.0f;//normalize to what fftw expects
+					stft_output[i][j] = stft_output[i][j] * previous[i][j + 63];
 				}
 			}
 
@@ -1105,7 +1113,7 @@ int main() {
 		float sum = 0;
 		output = my_filter.process(demo); // execute the function
 		for (int i = 0; i < 8192; i++) {
-			sum = sum + output[i];
+			sum = sum + abs(output[i]);
 		}
 		std::cout << "Total value " << sum << std::endl;
 	}
@@ -1119,43 +1127,3 @@ int main() {
 	return 0;
 }
 
-
-
-
-
-
-/*
-For the DLL, source code does not go in DLLmain
-
-
-
-
-
-The demo is an array of values whose properties are as follows:
-The shape is 8192, 1d, 32 bit float.
-The sum of the abs is 5931.02884009371.
-The max is 0.9711880684608272.
-The min is -1.3989478290080115.
-
-As the audio moves through our three stage buffer, it will reach a stable hysteresis, where future,
-present, and past iterations are being considered, but also where any of the three, if set to the demo,
-will cause all three to be considered- that is to say, it is enough data for the filter to process and not terminate prematurely.
-
-The expected conclusion of processing it and summing the ABS of it, provided that in previous iterations
-the same input was processed, so that the overlapping buffer is also considered,
-is 3925.476302948533.
-
-The first three iterations of the entropy padding should be:
-count: 33
-count: 97
-count: 128
-count: 128
-
-For all iterations, the entropy max should be: 0.2758841200365006.
-
-
-
-
-
-
-*/
