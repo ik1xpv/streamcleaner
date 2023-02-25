@@ -59,6 +59,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 * Other untested but well considered experiments:
 * instead of considering 1 segment at a time for entropy, lumping them together to decimate across time but have a more realistic estimate, and then smoothing
 * Perhaps decimating to three. If we do this, even with a quite small N_BINS for each row, we have enough samples for a decent logistic evaluation.
+*instead of rotating an audio buffer we could use some kind of circular buffer to store the stft contents and just add a frame of zeros whenever we skip
+*the hann inverting(when we process noise frames). This would allow producing only stft for 32 frames at a time, thus reducing waste.
+*the caveat is that i am garbage at using circular buffers and all they really do is let you use pointers to the end as the beginning, like an endless windmill.
+*the benefit they have. is that instead of doing a bunch of copy and paste to move the data through your buffer, you just point correctly and write correctly and
+*it will be like the last addresses come before the first and you can just use x+ offset into the buffer and it will work- the pointers past the transition will
+*read or write back to rows in the beginning, and your code just wont care, it will know it can add data at the end and read correctly and it will just work.
 *
 *
 * 
