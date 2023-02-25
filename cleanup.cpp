@@ -79,15 +79,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110 - 1301, USA
 //TODO: find ways to merge the uses of the above so that a mimimum in working memory can be utilized
 
 
-//export our functions
+//export our functions - this is only for use on linux.
+#if defined(__GNUC__)
 EXPORT void setConstant(float val);
 EXPORT void set_NBINS(int val);
 EXPORT std::array<float, 8192> process(std::array<float, 8192> input);
-
+#endif
 
 # define M_PI           3.14159265358979323846  /* pi */
 
-//class __declspec(dllexport) Filter for use only in dll
 class EXPORT Filter
 {
 private:
